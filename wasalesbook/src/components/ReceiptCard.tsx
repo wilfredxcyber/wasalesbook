@@ -165,8 +165,16 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
         scale: 2, // Reduced from 3 to prevent mobile memory crashes
         backgroundColor: null, // allows transparent so gradient borders work normally
         useCORS: true,
+        allowTaint: false, // Must be false so toBlob doesn't throw security error
       });
-      return new Promise(resolve => canvas.toBlob(blob => resolve(blob), 'image/png', 1.0));
+      return new Promise<Blob | null>((resolve, reject) => {
+         try {
+           canvas.toBlob(blob => resolve(blob), 'image/png', 1.0);
+         } catch(e) {
+           console.error("Canvas taint error:", e);
+           reject(e);
+         }
+      });
     } catch (err) {
       console.error('html2canvas error', err);
       return null;
@@ -226,7 +234,8 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
 
       // On some mobile devices (especially iOS and in-app browsers), 
       // blob downloads are blocked. We prefer Web Share API if possible.
-      if (isMobile && navigator.share) {
+      // MUST check window.isSecureContext otherwise it throws 'The operation is insecure'
+      if (isMobile && navigator.share && window.isSecureContext) {
         try {
           const file = new File([blob], filename, { type: 'image/png' });
           if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -267,8 +276,8 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
       const filename = `receipt_${order.id}.png`;
       const text = `Hi ${order.customerName},\n\nOrder Confirmed ✅\nProduct: ${order.product}\nAmount: ${formattedAmount}\nDelivery: ${order.deliveryStatus}\nRef: ${order.id}\n\n${order.paymentStatus === 'Unpaid' && profile.paymentDetails ? `Please make payment to:\n${profile.paymentDetails}` : ''}`;
       
-      // 1. Try Native Web Share API first
-      if (navigator.share) {
+      // 1. Try Native Web Share API first (requires HTTPS to avoid security errors)
+      if (navigator.share && window.isSecureContext) {
         try {
           const file = new File([blob], filename, { type: 'image/png' });
           const shareData = { files: [file], title: 'Order Receipt', text };
@@ -294,7 +303,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
         setTimeout(() => { window.location.href = whatsappUrl; }, 1000);
       } else {
         try {
-          if (navigator.clipboard && navigator.clipboard.writeText) {
+          if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
             await navigator.clipboard.writeText(text);
             showToast('Image saved! Text copied.');
           } else {
@@ -319,18 +328,19 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   const footerMessage = profile.receiptDesign?.footerMessage?.trim() || 'Thank you for your purchase ❤️';
   const watermark = profile.receiptDesign?.watermark || 'none';
 
-  // SVG color conversion logic for zigzag URL
+  // SVG base64 conversion to prevent Safari 'insecure operation' canvas blocking
   const getZigzagURL = () => {
-    // encode hex to %23 format for SVG
-    const line = theme.zigzagLine.replace('#', '%23');
-    const bg = theme.zigzagBg.replace('#', '%23');
-    return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='12'%3E%3Cpath d='M0 12 L12 0 L24 12' fill='${bg}' stroke='${line}' stroke-width='1'/%3E%3C/svg%3E")`;
+    const line = theme.zigzagLine;
+    const bg = theme.zigzagBg;
+    const svgStr = `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='12'><path d='M0 12 L12 0 L24 12' fill='${bg}' stroke='${line}' stroke-width='1'/></svg>`;
+    return `url("data:image/svg+xml;base64,${btoa(svgStr)}")`;
   };
 
   const getWavyURL = () => {
-    const line = theme.zigzagLine.replace('#', '%23');
-    const bg = theme.zigzagBg.replace('#', '%23');
-    return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='12'%3E%3Cpath d='M0 12 Q6 0 12 12 T24 12' fill='${bg}' stroke='${line}' stroke-width='1'/%3E%3C/svg%3E")`;
+    const line = theme.zigzagLine;
+    const bg = theme.zigzagBg;
+    const svgStr = `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='12'><path d='M0 12 Q6 0 12 12 T24 12' fill='${bg}' stroke='${line}' stroke-width='1'/></svg>`;
+    return `url("data:image/svg+xml;base64,${btoa(svgStr)}")`;
   };
 
   const getLogoBorderRadius = () => {
