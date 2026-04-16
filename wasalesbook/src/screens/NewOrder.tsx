@@ -1,8 +1,6 @@
 import { useState, ChangeEvent } from 'react';
-import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 import { Order, BusinessProfile, CatalogueProduct } from '../store/types';
-
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || 'missing_key_configure_in_vercel' });
+import { supabase } from '../lib/supabase';
 
 interface NewOrderProps {
   profile: BusinessProfile;
@@ -64,23 +62,26 @@ export function NewOrder({ profile, catalogue, onViewChange, showToast, addOrder
     setIsExtracting(true);
     showToast('Extracting data with AI...');
     try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents: `Extract order details from this WhatsApp message. Return a JSON object with keys: customerName (string), product (string, what was ordered), amount (number, the total price), notes (string, any extra context). If a field is not mentioned, use an empty string or 0. Message: ${smartPasteText}`,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              customerName: { type: Type.STRING },
-              product: { type: Type.STRING },
-              amount: { type: Type.NUMBER },
-              notes: { type: Type.STRING },
+      const { data: response, error } = await supabase.functions.invoke('gemini-proxy', {
+        body: {
+          model: 'gemini-2.0-flash',
+          contents: `Extract order details from this WhatsApp message. Return a JSON object with keys: customerName (string), product (string, what was ordered), amount (number, the total price), notes (string, any extra context). If a field is not mentioned, use an empty string or 0. Message: ${smartPasteText}`,
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: "OBJECT",
+              properties: {
+                customerName: { type: "STRING" },
+                product: { type: "STRING" },
+                amount: { type: "NUMBER" },
+                notes: { type: "STRING" },
+              },
             },
           },
-        },
+        }
       });
-
+      
+      if (error) throw error;
       const data = JSON.parse(response.text || '{}');
       if (data.customerName) setCustomerName(data.customerName);
       if (data.product) setProduct(data.product);
@@ -113,31 +114,34 @@ export function NewOrder({ profile, catalogue, onViewChange, showToast, addOrder
         const base64String = result.split(',')[1];
         
         try {
-          const response = await ai.models.generateContent({
-            model: 'gemini-2.0-flash',
-            contents: [
-              "Extract order details from this image of a handwritten or physical record book. Return a JSON object with keys: customerName (string), product (string, what was ordered), amount (number, the total price), notes (string, any extra context). If a field is not mentioned, use an empty string or 0.",
-              {
-                inlineData: {
-                  data: base64String,
-                  mimeType: file.type
+          const { data: response, error } = await supabase.functions.invoke('gemini-proxy', {
+            body: {
+              model: 'gemini-2.0-flash',
+              contents: [
+                "Extract order details from this image of a handwritten or physical record book. Return a JSON object with keys: customerName (string), product (string, what was ordered), amount (number, the total price), notes (string, any extra context). If a field is not mentioned, use an empty string or 0.",
+                {
+                  inlineData: {
+                    data: base64String,
+                    mimeType: file.type
+                  }
                 }
-              }
-            ],
-            config: {
-              responseMimeType: 'application/json',
-              responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                  customerName: { type: Type.STRING },
-                  product: { type: Type.STRING },
-                  amount: { type: Type.NUMBER },
-                  notes: { type: Type.STRING },
+              ],
+              config: {
+                responseMimeType: 'application/json',
+                responseSchema: {
+                  type: "OBJECT",
+                  properties: {
+                    customerName: { type: "STRING" },
+                    product: { type: "STRING" },
+                    amount: { type: "NUMBER" },
+                    notes: { type: "STRING" },
+                  },
                 },
               },
-            },
+            }
           });
-
+          
+          if (error) throw error;
           const data = JSON.parse(response.text || '{}');
           if (data.customerName) setCustomerName(data.customerName);
           if (data.product) setProduct(data.product);

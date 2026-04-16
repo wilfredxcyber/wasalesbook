@@ -1,9 +1,6 @@
 import { useState } from 'react';
-import { GoogleGenAI } from '@google/genai';
-import { DailySummary as DSType } from '../store/types';
-import { Order } from '../store/types';
-
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || 'missing_key_configure_in_vercel' });
+import { DailySummary as DSType, Order } from '../store/types';
+import { supabase } from '../lib/supabase';
 
 interface DailySummaryProps {
   summary: DSType;
@@ -32,9 +29,10 @@ export function DailySummary({ summary, orders, onViewChange, showToast }: Daily
         `- ${o.customerName}: ${o.product}, ${formatCurrency(o.amount)}, Payment: ${o.paymentStatus}, Delivery: ${o.deliveryStatus}`
       ).join('\n') || 'No orders today.';
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents: `You are a helpful assistant for a small WhatsApp seller. Write a short, friendly, plain-English daily sales summary based on these stats:
+      const { data, error } = await supabase.functions.invoke('gemini-proxy', {
+        body: {
+          model: 'gemini-2.0-flash',
+          contents: `You are a helpful assistant for a small WhatsApp seller. Write a short, friendly, plain-English daily sales summary based on these stats:
 
 Orders today: ${summary.totalOrders}
 Total revenue expected: ${formatCurrency(summary.totalRevenue)}
@@ -46,10 +44,12 @@ Delivered: ${summary.delivered}
 Order details:
 ${orderLines}
 
-Write a short summary (3-5 sentences) that helps the seller understand: how their day went, what money they still need to collect, and what deliveries are still pending. Use a friendly, practical tone. Do not use markdown.`,
+Write a short summary (3-5 sentences) that helps the seller understand: how their day went, what money they still need to collect, and what deliveries are still pending. Use a friendly, practical tone. Do not use markdown.`
+        }
       });
-
-      setAiSummary(response.text || '');
+      
+      if (error) throw error;
+      setAiSummary(data.text || '');
     } catch (error) {
       console.error(error);
       showToast('Failed to generate summary');
