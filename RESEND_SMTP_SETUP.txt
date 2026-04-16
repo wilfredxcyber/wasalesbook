@@ -1,0 +1,88 @@
+=====================================================================
+  WHATSBOOK — MANUALLY CONFIRM A USER (Use when OTP token expires)
+=====================================================================
+
+WHY: Supabase free plan allows only ~3 emails/hour.
+     If you've been testing and the token expired, confirm manually.
+
+STEPS:
+  1. Go to Supabase Dashboard → SQL Editor (</> icon on left sidebar)
+  2. Click "New Query"
+  3. Paste the SQL below (change the email to the user's email)
+  4. Click "Run" — you should see "1 row affected"
+  5. The user can now Sign In normally without needing an OTP
+
+SQL QUERY:
+----------------------------------------------------------------------
+UPDATE auth.users
+SET email_confirmed_at = NOW()
+WHERE email = 'user@example.com';
+----------------------------------------------------------------------
+
+⚠️  IMPORTANT NOTES:
+  - Do NOT include "confirmed_at" — it is auto-generated and will throw an error
+  - Only "email_confirmed_at" needs to be set
+  - After running, the user signs in via "Sign In" tab (NOT Sign Up)
+
+=====================================================================
+  WHATSBOOK — RESEND SMTP SETUP (Do this when you buy a domain)
+=====================================================================
+
+CURRENT STATUS: Using Supabase built-in email (free, limited to ~3 emails/hr)
+FUTURE GOAL: Switch to Resend.com for reliable, unlimited email delivery
+
+----------------------------------------------------------------------
+STEP 1 — BUY A DOMAIN
+----------------------------------------------------------------------
+- Recommended providers: Namecheap, GoDaddy, Google Domains, Cloudflare
+- Suggested domain ideas: whatsbook.app / whatsbook.io / wasalesbook.com
+- Cost: ~$10-15/year
+
+----------------------------------------------------------------------
+STEP 2 — VERIFY DOMAIN IN RESEND
+----------------------------------------------------------------------
+1. Go to https://resend.com → Login
+2. Click "Domains" → "Add Domain"
+3. Type your domain (e.g. whatsbook.app)
+4. Resend will give you DNS records (TXT + MX + DKIM)
+5. Add those DNS records in your domain registrar's DNS settings
+6. Wait ~10-30 minutes, then click "Verify" in Resend
+7. Status should change to ✅ Verified
+
+----------------------------------------------------------------------
+STEP 3 — GET RESEND API KEY
+----------------------------------------------------------------------
+1. In Resend → Go to "API Keys" → "Create API Key"
+2. Give it a name like "Whatsbook Supabase"
+3. Copy the key (starts with re_...)
+
+----------------------------------------------------------------------
+STEP 4 — CONFIGURE SMTP IN SUPABASE
+----------------------------------------------------------------------
+Go to: Supabase → Project Settings → Authentication → SMTP Settings
+Toggle: "Enable Custom SMTP" → ON
+
+Fill in:
+  SMTP Host:     smtp.resend.com
+  SMTP Port:     465
+  SMTP Username: resend
+  SMTP Password: re_XXXXXXXXXXXXXXXX  (your Resend API key)
+  Sender Email:  noreply@yourdomain.com  (must match your verified domain)
+  Sender Name:   Whatsbook
+
+Click Save.
+
+----------------------------------------------------------------------
+STEP 5 — TEST
+----------------------------------------------------------------------
+1. Go to your Vercel app → Sign Up with a fresh email
+2. You should receive a clean 6-digit code email from noreply@yourdomain.com
+3. Enter the code → You're in!
+
+----------------------------------------------------------------------
+SUPABASE CREDENTIALS (saved for reference)
+----------------------------------------------------------------------
+  Project URL:  https://zhnlgwmheykzwhttmcur.supabase.co
+  Anon Key:     eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpobmxnd21oZXlrendodHRtY3VyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NjgzODIsImV4cCI6MjA5MTM0NDM4Mn0.w0DY4vloFD8Quz3SEYUg21f7gtRvFbhU6iiymY_zDj4
+
+=====================================================================
