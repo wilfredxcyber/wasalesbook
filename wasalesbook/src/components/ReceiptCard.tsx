@@ -130,6 +130,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   const [generating, setGenerating] = useState(false);
   const [precomputedBlob, setPrecomputedBlob] = useState<Blob | null>(null);
   const [base64Logo, setBase64Logo] = useState<string | null>(null);
+  const [showImageModal, setShowImageModal] = useState<string | null>(null);
 
   // Convert remote logo to base64 to completely avoid Safari canvas tainting/CORS cache issues
   useEffect(() => {
@@ -255,10 +256,16 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       const filename = `receipt_${order.id}.png`;
 
-      // On some mobile devices (especially iOS and in-app browsers), 
-      // blob downloads are blocked. We prefer Web Share API if possible.
-      // MUST check window.isSecureContext otherwise it throws 'The operation is insecure'
-      if (isMobile && navigator.share && window.isSecureContext) {
+      // BYPASS FIX: On mobile, native share and blobs are heavily restricted by security policies
+      // Instead, we instantly show the user the rendered image full-screen so they can hold to save or share natively.
+      if (isMobile) {
+        const objectUrl = URL.createObjectURL(blob);
+        setShowImageModal(objectUrl);
+        return;
+      }
+
+      // Desktop fallback
+      if (navigator.share && window.isSecureContext) {
         try {
           const file = new File([blob], filename, { type: 'image/png' });
           if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -271,16 +278,14 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
           }
         } catch (shareErr: any) {
           if (shareErr.name === 'AbortError') return;
-          console.warn('Native share failed, falling back to download:', shareErr);
         }
       }
 
-      // Desktop or fallback mobile download
       downloadBlob(blob, filename);
       showToast('Receipt saved to device!');
     } catch (err: any) {
       console.error('Download error:', err);
-      showToast(`Download failed: ${err.message || 'Unknown'}`);
+      showToast(`Action failed: Please refresh and try again`);
     } finally {
       setGenerating(false);
     }
@@ -299,25 +304,26 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
       const filename = `receipt_${order.id}.png`;
       const text = `Hi ${order.customerName},\n\nOrder Confirmed ✅\nProduct: ${order.product}\nAmount: ${formattedAmount}\nDelivery: ${order.deliveryStatus}\nRef: ${order.id}\n\n${order.paymentStatus === 'Unpaid' && profile.paymentDetails ? `Please make payment to:\n${profile.paymentDetails}` : ''}`;
       
-      // 1. Try Native Web Share API first (requires HTTPS to avoid security errors)
-      if (navigator.share && window.isSecureContext) {
-        try {
-          const file = new File([blob], filename, { type: 'image/png' });
-          const shareData = { files: [file], title: 'Order Receipt', text };
-          
-          if (navigator.canShare && navigator.canShare(shareData)) {
-            await navigator.share(shareData);
-            showToast('Receipt shared!');
-            return;
-          }
-        } catch (shareErr: any) {
-          if (shareErr.name === 'AbortError') return;
-          console.warn('Native share failed, falling back to WhatsApp link:', shareErr);
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      if (isMobile) {
+        const objectUrl = URL.createObjectURL(blob);
+        setShowImageModal(objectUrl);
+        // We still show the image modal so they can copy it out, then we redirect text to WhatsApp
+      } else {
+        // Desktop
+        if (navigator.share && window.isSecureContext) {
+          try {
+            const file = new File([blob], filename, { type: 'image/png' });
+            const shareData = { files: [file], title: 'Order Receipt', text };
+            if (navigator.canShare && navigator.canShare(shareData)) {
+              await navigator.share(shareData);
+              return;
+            }
+          } catch (e: any) { if (e.name === 'AbortError') return; }
         }
+        downloadBlob(blob, filename);
       }
-
-      // 2. Fallback: Download then open link 
-      downloadBlob(blob, filename);
       
       if (order.phone) {
         const cleanPhone = order.phone.replace(/\D/g, '');
@@ -328,17 +334,12 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
         try {
           if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
             await navigator.clipboard.writeText(text);
-            showToast('Image saved! Text copied.');
-          } else {
-            showToast('Receipt saved to device!');
           }
-        } catch (e) {
-          showToast('Receipt saved to device!');
-        }
+        } catch (e) {}
       }
     } catch (err: any) {
       console.error('Share error:', err);
-      showToast(`Share failed: ${err.message || 'Unknown error'}`);
+      showToast(`Action failed: Try again or copy manually`);
     } finally {
       setGenerating(false);
     }
@@ -534,6 +535,36 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
           Share
         </button>
       </div>
+
+      {/* MODAL BYPASS: Displays the generated image for native mobile OS sharing/saving */}
+      {showImageModal && (
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/90 px-4 py-8 animate-in fade-in zoom-in duration-200">
+          <button 
+            onClick={() => {
+               URL.revokeObjectURL(showImageModal);
+               setShowImageModal(null);
+            }} 
+            className="absolute top-6 right-6 w-10 h-10 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center text-white active:scale-90 transition-all z-10"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+          
+          <p className="text-white font-bold text-center mb-6 animate-pulse px-8">
+            Long-press the image below to automatically Save or Share!
+          </p>
+          
+          <img 
+            src={showImageModal} 
+            alt="Final Receipt" 
+            className="w-full max-w-sm h-auto rounded-xl shadow-2xl object-contain drop-shadow-2xl"
+          />
+          
+          <p className="text-white/60 text-xs text-center mt-6 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[14px]">info</span>
+            This safely bypasses browser security restrictions
+          </p>
+        </div>
+      )}
     </div>
   );
 }
