@@ -129,6 +129,28 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
   const [generating, setGenerating] = useState(false);
   const [precomputedBlob, setPrecomputedBlob] = useState<Blob | null>(null);
+  const [base64Logo, setBase64Logo] = useState<string | null>(null);
+
+  // Convert remote logo to base64 to completely avoid Safari canvas tainting/CORS cache issues
+  useEffect(() => {
+    if (!profile.logoUrl) {
+      setBase64Logo(null);
+      return;
+    }
+    // Append a timestamp to heavily bypass Safari caching non-CORS images
+    const fetchUrl = `${profile.logoUrl}?t=${new Date().getTime()}`;
+    fetch(fetchUrl, { mode: 'cors' })
+      .then(res => res.blob())
+      .then(blob => {
+        const reader = new FileReader();
+        reader.onloadend = () => setBase64Logo(reader.result as string);
+        reader.readAsDataURL(blob);
+      })
+      .catch(err => {
+        console.error('Failed to convert logo to base64', err);
+        setBase64Logo(profile.logoUrl); // fallback
+      });
+  }, [profile.logoUrl]);
   
   const themeId = profile.receiptDesign?.themeId || RECEIPT_THEMES[0].id;
   const fontId = profile.receiptDesign?.fontId || FONTS[0].id;
@@ -162,10 +184,11 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
     if (!receiptRef.current) return null;
     try {
       const canvas = await html2canvas(receiptRef.current, {
-        scale: 2, // Reduced from 3 to prevent mobile memory crashes
-        backgroundColor: null, // allows transparent so gradient borders work normally
+        scale: 2, 
+        backgroundColor: null, 
         useCORS: true,
-        allowTaint: false, // Must be false so toBlob doesn't throw security error
+        allowTaint: false,
+        logging: false
       });
       return new Promise<Blob | null>((resolve, reject) => {
          try {
@@ -385,8 +408,10 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
               boxShadow: theme.logoShadow,
               overflow: 'hidden'
             }}>
-              {profile.logoUrl ? (
-                <img src={profile.logoUrl} alt="Logo" crossOrigin="anonymous" style={{ width: '100%', height: '100%', borderRadius: getLogoBorderRadius(), objectFit: 'cover' }} />
+              {base64Logo ? (
+                <img src={base64Logo} alt="Logo" style={{ width: '100%', height: '100%', borderRadius: getLogoBorderRadius(), objectFit: 'cover' }} />
+              ) : profile.logoUrl ? (
+                <span style={{ color: '#fff', fontSize: 24, fontWeight: 800 }}>...</span>
               ) : (
                 <span style={{ color: '#fff', fontSize: 24, fontWeight: 800 }}>{businessName.charAt(0).toUpperCase()}</span>
               )}

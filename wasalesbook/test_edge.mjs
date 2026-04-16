@@ -1,16 +1,19 @@
 import fetch from 'node-fetch';
 
 async function test() {
+  const url = 'https://zhnlgwmheykzwhttmcur.supabase.co/functions/v1/gemini-proxy';
+  const anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpobmxnd21oZXlrendodHRtY3VyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NjgzODIsImV4cCI6MjA5MTM0NDM4Mn0.w0DY4vloFD8Quz3SEYUg21f7gtRvFbhU6iiymY_zDj4';
+  
   try {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
+    const res = await fetch(url, {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer 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`
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${anonKey}`
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.0-flash-001',
-        messages: [{ role: "user", content: "hello" }]
+        model: 'gemini-2.0-flash',
+        contents: `You are a helpful assistant for a small WhatsApp seller. Write a short summary.`
       })
     });
     
