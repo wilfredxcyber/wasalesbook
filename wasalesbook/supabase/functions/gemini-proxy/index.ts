@@ -20,12 +20,12 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders });
     }
 
-    const apiKey = Deno.env.get('OPENAI_API_KEY');
+    const apiKey = Deno.env.get('OPENROUTER_API_KEY');
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'OPENAI_API_KEY is not set' }), { status: 500, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: 'OPENROUTER_API_KEY is not set' }), { status: 500, headers: corsHeaders });
     }
 
-    // Convert Gemini frontend format to OpenAI format
+    // Convert Gemini frontend format to OpenAI/OpenRouter format
     let finalContent = [];
     if (typeof contents === 'string') {
       finalContent.push({ type: "text", text: contents });
@@ -42,22 +42,21 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Default to the fast and intelligent gpt-4o-mini which supports images
-    const openaiPayload: any = {
-      model: 'gpt-4o-mini', 
+    // Use OpenRouter's gemini-2.0-flash model (extremely fast, robust JSON and Vision support)
+    const openRouterPayload: any = {
+      model: 'google/gemini-2.0-flash-001', 
       messages: [{ role: "user", content: finalContent }],
     };
 
-    // If frontend requested a specific JSON Schema extraction map it to OpenAI
+    // If frontend requested a specific JSON Schema extraction map it
     if (config?.responseSchema) {
        const schema = config.responseSchema;
        const properties = schema.properties || {};
        
-       // Force strict JSON type mapping
        const openAiSchema: any = {
           type: "object",
           properties: {},
-          additionalProperties: false,
+           additionalProperties: false,
           required: Object.keys(properties)
        };
        
@@ -68,7 +67,7 @@ Deno.serve(async (req) => {
           };
        });
 
-       openaiPayload.response_format = {
+       openRouterPayload.response_format = {
          type: "json_schema",
          json_schema: {
            name: "OrderExtraction",
@@ -78,19 +77,21 @@ Deno.serve(async (req) => {
        };
     }
 
-    // Call OpenAI API
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    // Call OpenRouter API
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
+        "Authorization": `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://wasalesbook.com",
+        "X-Title": "SalesbookApp"
       },
-      body: JSON.stringify(openaiPayload)
+      body: JSON.stringify(openRouterPayload)
     });
 
     if (!response.ok) {
        const errResponse = await response.text();
-       throw new Error(`OpenAI Error: ${errResponse}`);
+       throw new Error(`OpenRouter Error: ${errResponse}`);
     }
 
     const openAiData = await response.json();
