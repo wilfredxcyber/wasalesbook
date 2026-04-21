@@ -333,7 +333,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
           if (navigator.canShare && navigator.canShare(shareData)) {
             await navigator.share(shareData);
             if (whatsappUrl) {
-              window.open(whatsappUrl, '_blank');
+              setTimeout(() => { window.open(whatsappUrl, '_blank'); }, 500);
             }
             return;
           }
@@ -348,7 +348,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
       downloadBlob(blob, filename);
       if (whatsappUrl) {
         showToast('Image downloaded. Opening WhatsApp...');
-        window.open(whatsappUrl, '_blank');
+        setTimeout(() => { window.open(whatsappUrl, '_blank'); }, 800);
       } else {
         showToast('Receipt downloaded!');
         try {
@@ -441,11 +441,18 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
             <p style={{ fontSize: 10, color: theme.secondaryText, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1.5, marginTop: 4 }}>Payment Receipt</p>
           </div>
 
-          {/* Separator - pure CSS fallback to prevent Safari SVG canvas tainting */}
-          {dividerStyle === 'solid' ? (
-            <div style={{ margin: '16px 0', borderTop: `2px solid ${theme.zigzagLine}` }} />
-          ) : (
+          {/* Separator */}
+          {dividerStyle === 'zigzag' && (
+            <div style={{ margin: '0 -24px', height: 12, backgroundImage: getZigzagURL(), backgroundRepeat: 'repeat-x', backgroundSize: '24px 12px' }} />
+          )}
+          {dividerStyle === 'wavy' && (
+            <div style={{ margin: '0 -24px', height: 12, backgroundImage: getWavyURL(), backgroundRepeat: 'repeat-x', backgroundSize: '24px 12px' }} />
+          )}
+          {dividerStyle === 'dashed' && (
             <div style={{ margin: '16px 0', borderTop: `2px dashed ${theme.zigzagLine}` }} />
+          )}
+          {dividerStyle === 'solid' && (
+            <div style={{ margin: '16px 0', borderTop: `2px solid ${theme.zigzagLine}` }} />
           )}
 
           {/* Amount */}

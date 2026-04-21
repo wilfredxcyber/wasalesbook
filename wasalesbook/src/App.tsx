@@ -105,21 +105,15 @@ export default function App() {
       const error = await signIn(email, password);
       return error ? error.message : null;
     }
-    const { error, userCreated, sessionActive } = await signUp(email, password);
-    
-    // If there is no error and the session is active, auto-login was successful
-    if (!error && sessionActive) return null; 
-    
-    // If there is no error but no session, Supabase is waiting for email confirmation
-    if (!error && !sessionActive) return '__REQUIRE_OTP__';
-
-    // Signup failed with an error, but user account might've been created if SMTP failed
+    const { error, userCreated } = await signUp(email, password);
+    if (!error) return null; // success — user created, email sent
     if (userCreated) {
-      return `__SMTP_WARN__${error?.message || 'Email delivery failed'}`;
+      // Account was created but email delivery failed (SMTP issue)
+      // Signal Login.tsx to go to OTP screen with a warning
+      return `__SMTP_WARN__${error.message}`;
     }
-    
-    // Standard error
-    return error?.message || 'Signup failed';
+    // Signup itself failed — user was NOT created
+    return error.message;
   };
 
   const handleVerifyOtp = async (email: string, token: string): Promise<string | null> => {

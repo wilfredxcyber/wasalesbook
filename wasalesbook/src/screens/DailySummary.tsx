@@ -29,8 +29,9 @@ export function DailySummary({ summary, orders, onViewChange, showToast }: Daily
         `- ${o.customerName}: ${o.product}, ${formatCurrency(o.amount)}, Payment: ${o.paymentStatus}, Delivery: ${o.deliveryStatus}`
       ).join('\n') || 'No orders today.';
 
-      const { data, error } = await supabase.functions.invoke('openai-proxy', {
+      const { data, error } = await supabase.functions.invoke('gemini-proxy', {
         body: {
+          model: 'gemini-2.0-flash',
           contents: `You are a helpful assistant for a small WhatsApp seller. Write a short, friendly, plain-English daily sales summary based on these stats:
 
 Orders today: ${summary.totalOrders}

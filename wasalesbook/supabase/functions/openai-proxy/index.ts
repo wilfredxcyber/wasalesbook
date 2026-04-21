@@ -20,9 +20,9 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders });
     }
 
-    const apiKey = Deno.env.get('OPENAI_API_KEY');
+    const apiKey = Deno.env.get('OPENROUTER_API_KEY');
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'OPENAI_API_KEY is not set' }), { status: 500, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: 'OPENROUTER_API_KEY is not set' }), { status: 500, headers: corsHeaders });
     }
 
     // Convert Gemini frontend format to OpenAI/OpenRouter format
@@ -42,9 +42,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Use OpenAI's gpt-4o-mini
-    const openAiPayload: any = {
-      model: 'gpt-4o-mini', 
+    // Use OpenRouter's gemini-2.0-flash model (extremely fast, robust JSON and Vision support)
+    const openRouterPayload: any = {
+      model: 'google/gemini-2.0-flash-001', 
       messages: [{ role: "user", content: finalContent }],
     };
 
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
           };
        });
 
-       openAiPayload.response_format = {
+       openRouterPayload.response_format = {
          type: "json_schema",
          json_schema: {
            name: "OrderExtraction",
@@ -77,19 +77,21 @@ Deno.serve(async (req) => {
        };
     }
 
-    // Call OpenAI API
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    // Call OpenRouter API
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
+        "Authorization": `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://wasalesbook.com",
+        "X-Title": "SalesbookApp"
       },
-      body: JSON.stringify(openAiPayload)
+      body: JSON.stringify(openRouterPayload)
     });
 
     if (!response.ok) {
        const errResponse = await response.text();
-       throw new Error(`OpenAI Error: ${errResponse}`);
+       throw new Error(`OpenRouter Error: ${errResponse}`);
     }
 
     const openAiData = await response.json();

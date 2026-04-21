@@ -295,13 +295,6 @@ export function Login({ onLogin, onVerifyOtp, onResendOtp, onRequestPasswordRese
   const handleAuthSubmit = async (email: string, password: string) => {
     const isSignUp = stage === 'signup';
     const err = await onLogin(email, password, isSignUp);
-    
-    if (err === '__REQUIRE_OTP__') {
-      setPendingEmail(email);
-      setStage('verify_otp');
-      return;
-    }
-    
     if (err) {
       if (isSignUp && err.startsWith('__SMTP_WARN__')) {
         setPendingEmail(email);
@@ -311,10 +304,10 @@ export function Login({ onLogin, onVerifyOtp, onResendOtp, onRequestPasswordRese
       throw new Error(err);
     }
 
-    // If we reach here, there was no error. 
-    // If it was a signup, and we didn't receive __REQUIRE_OTP__, 
-    // it means auto-login succeeded (email confirmations are disabled in Supabase).
-    // The App.tsx level will automatically detect the active session and hide the Login screen.
+    if (isSignUp) {
+      setPendingEmail(email);
+      setStage('verify_otp');
+    }
   };
 
   return (
