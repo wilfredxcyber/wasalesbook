@@ -130,7 +130,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   const [generating, setGenerating] = useState(false);
   const [precomputedBlob, setPrecomputedBlob] = useState<Blob | null>(null);
   const [base64Logo, setBase64Logo] = useState<string | null>(null);
-  const [showImageModal, setShowImageModal] = useState<string | null>(null);
+  const [showImageModal, setShowImageModal] = useState<{ url: string; isShare?: boolean; text?: string; phoneUrl?: string } | null>(null);
 
   // Convert remote logo to base64 to completely avoid Safari canvas tainting/CORS cache issues
   useEffect(() => {
@@ -242,7 +242,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   const handleDownload = async () => {
     try {
       setGenerating(true);
-      // Try to use precomputed blob first, but capture fresh if missing
+      // Try to use precomputed blob first, capture fresh if missing
       let blob = precomputedBlob;
       if (!blob) {
         blob = await captureReceipt();
@@ -254,26 +254,22 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
       }
       
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const filename = `receipt_${order.id}.png`;
-
-      // BYPASS FIX: On mobile, native share and blobs are heavily restricted by security policies
-      // Instead, we instantly show the user the rendered image full-screen so they can hold to save or share natively.
+      
+      // BYPASS FIX: On mobile, native share and blobs are heavily restricted or buggy.
+      // We instantly show the user the rendered image full-screen so they can hold to save.
       if (isMobile) {
         const objectUrl = URL.createObjectURL(blob);
-        setShowImageModal(objectUrl);
+        setShowImageModal({ url: objectUrl });
         return;
       }
 
-      // Desktop fallback
+      // Desktop: Attempt native share if available (helps on macOS Safari/Chrome)
       if (navigator.share && window.isSecureContext) {
         try {
           const file = new File([blob], filename, { type: 'image/png' });
           if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({
-              files: [file],
-              title: 'Order Receipt',
-            });
-            showToast('Ready to save or share!');
+            await navigator.share({ files: [file], title: 'Order Receipt' });
+            showToast('Receipt saved!');
             return;
           }
         } catch (shareErr: any) {
@@ -281,15 +277,20 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
         }
       }
 
+      // Desktop: direct download fallback
+
+      // Desktop: direct download
       downloadBlob(blob, filename);
       showToast('Receipt saved to device!');
     } catch (err: any) {
       console.error('Download error:', err);
-      showToast(`Action failed: Please refresh and try again`);
+      showToast('Action failed: Please refresh and try again');
     } finally {
       setGenerating(false);
     }
-  };  const handleShareWhatsApp = async () => {
+  };
+
+  const handleShareWhatsApp = async () => {
     try {
       setGenerating(true);
       let blob = precomputedBlob;
@@ -300,37 +301,56 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
         showToast('Failed to generate receipt image');
         return;
       }
-      
+
       const filename = `receipt_${order.id}.png`;
       const text = `Hi ${order.customerName},\n\nOrder Confirmed ✅\nProduct: ${order.product}\nAmount: ${formattedAmount}\nDelivery: ${order.deliveryStatus}\nRef: ${order.id}\n\n${order.paymentStatus === 'Unpaid' && profile.paymentDetails ? `Please make payment to:\n${profile.paymentDetails}` : ''}`;
-      
+
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      
-      if (isMobile) {
-        const objectUrl = URL.createObjectURL(blob);
-        setShowImageModal(objectUrl);
-        // We still show the image modal so they can copy it out, then we redirect text to WhatsApp
-      } else {
-        // Desktop
-        if (navigator.share && window.isSecureContext) {
-          try {
-            const file = new File([blob], filename, { type: 'image/png' });
-            const shareData = { files: [file], title: 'Order Receipt', text };
-            if (navigator.canShare && navigator.canShare(shareData)) {
-              await navigator.share(shareData);
-              return;
-            }
-          } catch (e: any) { if (e.name === 'AbortError') return; }
-        }
-        downloadBlob(blob, filename);
-      }
-      
+
+      let whatsappUrl = '';
       if (order.phone) {
         const cleanPhone = order.phone.replace(/\D/g, '');
-        const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text + '\n\n📎 *Image saved.* Please attach the receipt here!')}`;
-        showToast('Image saved. Opening WhatsApp...');
-        setTimeout(() => { window.location.href = whatsappUrl; }, 1000);
+        whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text + (isMobile ? '\n\n📎 *Image shown on screen — please save and attach it!*' : '\n\n📎 *Image saved! Please attach it!*'))}`;
+      }
+
+      // BYPASS FIX: Same as download, bypass flaky share sheet on mobile.
+      if (isMobile) {
+        const objectUrl = URL.createObjectURL(blob);
+        setShowImageModal({ 
+          url: objectUrl, 
+          isShare: true, 
+          text, 
+          phoneUrl: whatsappUrl || undefined 
+        });
+        return;
+      }
+
+      // Desktop: Native Share
+      if (navigator.share && window.isSecureContext) {
+        try {
+          const file = new File([blob], filename, { type: 'image/png' });
+          const shareData: ShareData = { files: [file], title: 'Order Receipt', text };
+          if (navigator.canShare && navigator.canShare(shareData)) {
+            await navigator.share(shareData);
+            if (whatsappUrl) {
+              setTimeout(() => { window.open(whatsappUrl, '_blank'); }, 500);
+            }
+            return;
+          }
+        } catch (shareErr: any) {
+          if (shareErr.name === 'AbortError') return;
+        }
+      }
+
+      // Desktop fallback: download + WhatsApp link
+
+      // Desktop fallback: download + WhatsApp link
+      downloadBlob(blob, filename);
+      if (whatsappUrl) {
+        showToast('Image downloaded. Opening WhatsApp...');
+        setTimeout(() => { window.open(whatsappUrl, '_blank'); }, 800);
       } else {
+        showToast('Receipt downloaded!');
         try {
           if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
             await navigator.clipboard.writeText(text);
@@ -339,7 +359,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
       }
     } catch (err: any) {
       console.error('Share error:', err);
-      showToast(`Action failed: Try again or copy manually`);
+      showToast('Action failed: Try again or copy manually');
     } finally {
       setGenerating(false);
     }
@@ -538,30 +558,69 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
 
       {/* MODAL BYPASS: Displays the generated image for native mobile OS sharing/saving */}
       {showImageModal && (
-        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/90 px-4 py-8 animate-in fade-in zoom-in duration-200">
-          <button 
-            onClick={() => {
-               URL.revokeObjectURL(showImageModal);
-               setShowImageModal(null);
-            }} 
-            className="absolute top-6 right-6 w-10 h-10 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center text-white active:scale-90 transition-all z-10"
-          >
-            <span className="material-symbols-outlined">close</span>
-          </button>
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/95 px-4 py-8 animate-in fade-in zoom-in duration-200">
+          <div className="absolute top-0 right-0 left-0 p-4 flex justify-end">
+            <button 
+              onClick={() => {
+                 URL.revokeObjectURL(showImageModal.url);
+                 setShowImageModal(null);
+              }} 
+              className="w-10 h-10 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center text-white active:scale-90 transition-all z-10"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
           
-          <p className="text-white font-bold text-center mb-6 animate-pulse px-8">
-            Long-press the image below to automatically Save or Share!
-          </p>
+          <div className="flex-1 w-full flex flex-col items-center justify-center overflow-auto py-8 mt-10">
+            <p className="text-white font-bold text-center mb-6 animate-pulse px-8 text-sm">
+              Long-press the image below to Save!
+            </p>
+            
+            <img 
+              src={showImageModal.url} 
+              alt="Final Receipt" 
+              className="w-full max-w-sm h-auto rounded-xl shadow-[0_0_40px_rgba(37,211,102,0.15)] object-contain drop-shadow-2xl mb-8 border border-[#25D366]/30"
+              style={{ pointerEvents: 'auto' }} // Ensure long-press works naturally
+            />
+            
+            {showImageModal.isShare && showImageModal.phoneUrl && (
+              <a 
+                href={showImageModal.phoneUrl} 
+                target="_blank" 
+                rel="noreferrer"
+                className="w-full max-w-sm flex items-center justify-center gap-2 py-4 bg-[#25D366] text-white font-bold rounded-xl shadow-[0_8px_30px_rgba(37,211,102,0.3)] active:scale-95 transition-transform"
+                onClick={() => {
+                   // Clean up after they click
+                   setTimeout(() => {
+                     URL.revokeObjectURL(showImageModal.url);
+                     setShowImageModal(null);
+                   }, 1000);
+                }}
+              >
+                <span className="material-symbols-outlined">chat</span>
+                Continue to WhatsApp
+              </a>
+            )}
+            
+            {showImageModal.isShare && !showImageModal.phoneUrl && (
+              <button 
+                onClick={async () => {
+                  try {
+                    if (navigator.clipboard) await navigator.clipboard.writeText(showImageModal.text || '');
+                    showToast('Details copied! Now share image manually.');
+                  } catch(e) {}
+                }}
+                className="w-full max-w-sm flex items-center justify-center gap-2 py-4 bg-white/10 border border-white/20 text-white font-bold rounded-xl active:scale-95 transition-transform"
+              >
+                <span className="material-symbols-outlined">content_copy</span>
+                Copy Details
+              </button>
+            )}
+          </div>
           
-          <img 
-            src={showImageModal} 
-            alt="Final Receipt" 
-            className="w-full max-w-sm h-auto rounded-xl shadow-2xl object-contain drop-shadow-2xl"
-          />
-          
-          <p className="text-white/60 text-xs text-center mt-6 flex items-center gap-2">
-            <span className="material-symbols-outlined text-[14px]">info</span>
-            This safely bypasses browser security restrictions
+          <p className="text-white/40 text-[10px] text-center mb-0 mt-auto flex items-center justify-center gap-2 pt-4 pb-safe font-medium">
+            <span className="material-symbols-outlined text-[12px]">security</span>
+            Bypassing browser security restrictions
           </p>
         </div>
       )}
