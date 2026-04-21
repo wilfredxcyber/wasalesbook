@@ -32,12 +32,13 @@ export function useAuth() {
     return error;
   };
 
-  const signUp = async (email: string, password: string): Promise<{ error: Error | null; userCreated: boolean }> => {
+  const signUp = async (email: string, password: string): Promise<{ error: Error | null; userCreated: boolean; sessionActive: boolean }> => {
     setAuthError(null);
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) setAuthError(error.message);
     // data.user is non-null when the account was created even if email delivery failed
-    return { error: error as Error | null, userCreated: !!data?.user };
+    // data.session is non-null if auto-confirm is enabled in Supabase and the user is instantly logged in
+    return { error: error as Error | null, userCreated: !!data?.user, sessionActive: !!data?.session };
   };
 
   const verifyOtp = async (email: string, token: string) => {
