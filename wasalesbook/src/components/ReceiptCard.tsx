@@ -149,11 +149,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
       })
       .catch(err => {
         console.error('Failed to convert logo to base64', err);
-        // Do NOT fallback to profile.logoUrl directly, because if the fetch failed (likely a CORS issue),
-        // rendering the external URL directly into an <img /> will permanently taint the html2canvas
-        // canvas, crashing both download and share buttons with "The operation is insecure".
-        // Instead, fallback to null so it safely shows the business name initial!
-        setBase64Logo(null); 
+        setBase64Logo(profile.logoUrl); // fallback
       });
   }, [profile.logoUrl]);
   
@@ -337,7 +333,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
           if (navigator.canShare && navigator.canShare(shareData)) {
             await navigator.share(shareData);
             if (whatsappUrl) {
-              setTimeout(() => { window.open(whatsappUrl, '_blank'); }, 500);
+              window.open(whatsappUrl, '_blank');
             }
             return;
           }
@@ -352,7 +348,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
       downloadBlob(blob, filename);
       if (whatsappUrl) {
         showToast('Image downloaded. Opening WhatsApp...');
-        setTimeout(() => { window.open(whatsappUrl, '_blank'); }, 800);
+        window.open(whatsappUrl, '_blank');
       } else {
         showToast('Receipt downloaded!');
         try {
@@ -445,18 +441,11 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
             <p style={{ fontSize: 10, color: theme.secondaryText, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1.5, marginTop: 4 }}>Payment Receipt</p>
           </div>
 
-          {/* Separator */}
-          {dividerStyle === 'zigzag' && (
-            <div style={{ margin: '0 -24px', height: 12, backgroundImage: getZigzagURL(), backgroundRepeat: 'repeat-x', backgroundSize: '24px 12px' }} />
-          )}
-          {dividerStyle === 'wavy' && (
-            <div style={{ margin: '0 -24px', height: 12, backgroundImage: getWavyURL(), backgroundRepeat: 'repeat-x', backgroundSize: '24px 12px' }} />
-          )}
-          {dividerStyle === 'dashed' && (
-            <div style={{ margin: '16px 0', borderTop: `2px dashed ${theme.zigzagLine}` }} />
-          )}
-          {dividerStyle === 'solid' && (
+          {/* Separator - pure CSS fallback to prevent Safari SVG canvas tainting */}
+          {dividerStyle === 'solid' ? (
             <div style={{ margin: '16px 0', borderTop: `2px solid ${theme.zigzagLine}` }} />
+          ) : (
+            <div style={{ margin: '16px 0', borderTop: `2px dashed ${theme.zigzagLine}` }} />
           )}
 
           {/* Amount */}
