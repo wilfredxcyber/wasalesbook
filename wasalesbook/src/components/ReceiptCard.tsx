@@ -149,7 +149,11 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
       })
       .catch(err => {
         console.error('Failed to convert logo to base64', err);
-        setBase64Logo(profile.logoUrl); // fallback
+        // Do NOT fallback to profile.logoUrl directly, because if the fetch failed (likely a CORS issue),
+        // rendering the external URL directly into an <img /> will permanently taint the html2canvas
+        // canvas, crashing both download and share buttons with "The operation is insecure".
+        // Instead, fallback to null so it safely shows the business name initial!
+        setBase64Logo(null); 
       });
   }, [profile.logoUrl]);
   
