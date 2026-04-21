@@ -62,9 +62,8 @@ export function NewOrder({ profile, catalogue, onViewChange, showToast, addOrder
     setIsExtracting(true);
     showToast('Extracting data with AI...');
     try {
-      const { data: response, error } = await supabase.functions.invoke('gemini-proxy', {
+      const { data: response, error } = await supabase.functions.invoke('openai-proxy', {
         body: {
-          model: 'gemini-2.0-flash',
           contents: `Extract order details from this WhatsApp message. Return a JSON object with keys: customerName (string), product (string, what was ordered), amount (number, the total price), notes (string, any extra context). If a field is not mentioned, use an empty string or 0. Message: ${smartPasteText}`,
           config: {
             responseMimeType: 'application/json',
@@ -114,9 +113,8 @@ export function NewOrder({ profile, catalogue, onViewChange, showToast, addOrder
         const base64String = result.split(',')[1];
         
         try {
-          const { data: response, error } = await supabase.functions.invoke('gemini-proxy', {
+          const { data: response, error } = await supabase.functions.invoke('openai-proxy', {
             body: {
-              model: 'gemini-2.0-flash',
               contents: [
                 "Extract order details from this image of a handwritten or physical record book. Return a JSON object with keys: customerName (string), product (string, what was ordered), amount (number, the total price), notes (string, any extra context). If a field is not mentioned, use an empty string or 0.",
                 {
