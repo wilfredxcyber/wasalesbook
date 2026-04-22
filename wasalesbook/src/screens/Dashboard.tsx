@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Order, BusinessProfile } from '../store/types';
-import { SalesChart } from '../components/SalesChart';
 import { Confetti } from '../components/Confetti';
 
 type Filter = 'All' | 'Pending' | 'Paid' | 'Delivered';
@@ -158,7 +157,6 @@ export function Dashboard({ orders, profile, onViewChange, showToast, updateOrde
           </div>
         </div>
 
-        {orders.length > 0 && <SalesChart orders={orders} />}
 
         {orders.length === 0 ? (
           <div className="mt-6 border-transparent">
