@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'; import { toPng } from 'html-to-image';
+import { useRef, useState, useEffect } from 'react'; import { toPng } from 'html-to-image';
 import { Order, BusinessProfile } from '../store/types';
 
 interface ReceiptCardProps {
@@ -128,6 +128,20 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
   const [generating, setGenerating] = useState(false);
   const [modalConfig, setModalConfig] = useState<{ url: string, waUrl?: string } | null>(null);
+  const [base64Logo, setBase64Logo] = useState<string | null>(null);
+
+  // Pre-fetch logo to base64 to prevent Safari "insecure operation" canvas tainting
+  useEffect(() => {
+    if (!profile.logoUrl) return;
+    fetch(profile.logoUrl)
+      .then(res => res.blob())
+      .then(blob => {
+        const reader = new FileReader();
+        reader.onloadend = () => setBase64Logo(reader.result as string);
+        reader.readAsDataURL(blob);
+      })
+      .catch(err => console.error('Failed to convert logo to base64', err));
+  }, [profile.logoUrl]);
 
   const themeId = profile.receiptDesign?.themeId || RECEIPT_THEMES[0].id;
   const fontId = profile.receiptDesign?.fontId || FONTS[0].id;
@@ -315,7 +329,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
               overflow: 'hidden'
             }}>
               {profile.logoUrl ? (
-                <img src={profile.logoUrl} crossOrigin="anonymous" alt="Logo" style={{ width: '100%', height: '100%', borderRadius: getLogoBorderRadius(), objectFit: 'cover' }} />
+                <img src={base64Logo || profile.logoUrl} crossOrigin="anonymous" alt="Logo" style={{ width: '100%', height: '100%', borderRadius: getLogoBorderRadius(), objectFit: 'cover' }} />
               ) : (
                 <span style={{ color: '#fff', fontSize: 24, fontWeight: 800 }}>{businessName.charAt(0).toUpperCase()}</span>
               )}
