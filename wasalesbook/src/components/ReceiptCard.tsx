@@ -129,10 +129,12 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   const [generating, setGenerating] = useState(false);
   const [modalConfig, setModalConfig] = useState<{ url: string, waUrl?: string } | null>(null);
   const [base64Logo, setBase64Logo] = useState<string | null>(null);
+  const [logoError, setLogoError] = useState(false);
 
   // Pre-fetch logo to base64 to prevent Safari "insecure operation" canvas tainting
   useEffect(() => {
     if (!profile.logoUrl) return;
+    setLogoError(false);
     fetch(profile.logoUrl)
       .then(res => res.blob())
       .then(blob => {
@@ -140,8 +142,13 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
         reader.onloadend = () => setBase64Logo(reader.result as string);
         reader.readAsDataURL(blob);
       })
-      .catch(err => console.error('Failed to convert logo to base64', err));
+      .catch(err => {
+        console.error('Failed to convert logo to base64', err);
+        setLogoError(true);
+      });
   }, [profile.logoUrl]);
+
+  const isLogoLoading = profile.logoUrl && !base64Logo && !logoError;
 
   const themeId = profile.receiptDesign?.themeId || RECEIPT_THEMES[0].id;
   const fontId = profile.receiptDesign?.fontId || FONTS[0].id;
@@ -278,20 +285,25 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   const footerMessage = profile.receiptDesign?.footerMessage?.trim() || 'Thank you for your purchase ❤️';
   const watermark = profile.receiptDesign?.watermark || 'none';
 
-  // SVG base64 conversion to prevent Safari 'insecure operation' canvas blocking
-  const getZigzagURL = () => {
-    const line = theme.zigzagLine;
-    const bg = theme.zigzagBg;
-    const svgStr = `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='12'><path d='M0 12 L12 0 L24 12' fill='${bg}' stroke='${line}' stroke-width='1'/></svg>`;
-    return `url("data:image/svg+xml;base64,${btoa(svgStr)}")`;
-  };
+  const renderZigzag = () => (
+    <div style={{ margin: '0 -24px', height: 12, display: 'flex', overflow: 'hidden' }}>
+      {Array.from({ length: 24 }).map((_, i) => (
+        <svg key={i} xmlns="http://www.w3.org/2000/svg" width="24" height="12" style={{ flexShrink: 0 }}>
+          <path d="M0 12 L12 0 L24 12" fill={theme.zigzagBg} stroke={theme.zigzagLine} strokeWidth="1"/>
+        </svg>
+      ))}
+    </div>
+  );
 
-  const getWavyURL = () => {
-    const line = theme.zigzagLine;
-    const bg = theme.zigzagBg;
-    const svgStr = `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='12'><path d='M0 12 Q6 0 12 12 T24 12' fill='${bg}' stroke='${line}' stroke-width='1'/></svg>`;
-    return `url("data:image/svg+xml;base64,${btoa(svgStr)}")`;
-  };
+  const renderWavy = () => (
+    <div style={{ margin: '0 -24px', height: 12, display: 'flex', overflow: 'hidden' }}>
+      {Array.from({ length: 24 }).map((_, i) => (
+        <svg key={i} xmlns="http://www.w3.org/2000/svg" width="24" height="12" style={{ flexShrink: 0 }}>
+          <path d="M0 12 Q6 0 12 12 T24 12" fill={theme.zigzagBg} stroke={theme.zigzagLine} strokeWidth="1"/>
+        </svg>
+      ))}
+    </div>
+  );
 
   const getLogoBorderRadius = () => {
     if (logoShape === 'square') return '4px';
@@ -335,8 +347,10 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
               boxShadow: theme.logoShadow,
               overflow: 'hidden'
             }}>
-              {profile.logoUrl ? (
-                <img src={base64Logo || profile.logoUrl} crossOrigin="anonymous" alt="Logo" style={{ width: '100%', height: '100%', borderRadius: getLogoBorderRadius(), objectFit: 'cover' }} />
+              {base64Logo ? (
+                <img src={base64Logo} alt="Logo" style={{ width: '100%', height: '100%', borderRadius: getLogoBorderRadius(), objectFit: 'cover' }} />
+              ) : isLogoLoading ? (
+                <span style={{ color: theme.secondaryText, fontSize: 10, fontWeight: 600 }}>...</span>
               ) : (
                 <span style={{ color: '#fff', fontSize: 24, fontWeight: 800 }}>{businessName.charAt(0).toUpperCase()}</span>
               )}
@@ -346,12 +360,8 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
           </div>
 
           {/* Separator */}
-          {dividerStyle === 'zigzag' && (
-            <div style={{ margin: '0 -24px', height: 12, backgroundImage: getZigzagURL(), backgroundRepeat: 'repeat-x', backgroundSize: '24px 12px' }} />
-          )}
-          {dividerStyle === 'wavy' && (
-            <div style={{ margin: '0 -24px', height: 12, backgroundImage: getWavyURL(), backgroundRepeat: 'repeat-x', backgroundSize: '24px 12px' }} />
-          )}
+          {dividerStyle === 'zigzag' && renderZigzag()}
+          {dividerStyle === 'wavy' && renderWavy()}
           {dividerStyle === 'dashed' && (
             <div style={{ margin: '16px 0', borderTop: `2px dashed ${theme.zigzagLine}` }} />
           )}
@@ -436,7 +446,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
       <div className="flex gap-3 max-w-sm mx-auto">
         <button
           onClick={handleSave}
-          disabled={generating}
+          disabled={generating || isLogoLoading}
           className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-surface-container-high text-on-surface font-bold rounded-xl active:scale-95 transition-transform disabled:opacity-50"
         >
           {generating ? (
@@ -448,7 +458,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
         </button>
         <button
           onClick={handleShare}
-          disabled={generating}
+          disabled={generating || isLogoLoading}
           className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-[#25D366] text-white font-bold rounded-xl active:scale-95 transition-transform shadow-lg disabled:opacity-50"
         >
           {generating ? (
