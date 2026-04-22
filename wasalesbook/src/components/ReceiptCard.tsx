@@ -128,7 +128,7 @@ export const FONTS = [
 export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
   const [generating, setGenerating] = useState(false);
-  const [modalConfig, setModalConfig] = useState<{ url: string, waUrl?: string } | null>(null);
+  const [modalConfig, setModalConfig] = useState<{ url: string, waUrl?: string, htmlContent?: string } | null>(null);
   const [base64Logo, setBase64Logo] = useState<string | null>(null);
   const [logoError, setLogoError] = useState(false);
 
@@ -307,7 +307,8 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
       `;
 
       // Create data URL
-      const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(htmlContent);
+      const htmlBlob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const dataUrl = URL.createObjectURL(htmlBlob);
 
       // Create WhatsApp share message
       const text = `Hi ${order.customerName},\n\nOrder Confirmed ✅\nProduct: ${order.product}\nAmount: ${formattedAmount}\nRef: ${order.id}`;
@@ -317,7 +318,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
         waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text + '\n\n📎 Please see receipt attached.')}`;
       }
 
-      setModalConfig({ url: dataUrl, waUrl });
+      setModalConfig({ url: dataUrl, waUrl, htmlContent });
     } catch (err: any) {
       console.error('Generation error:', err);
       showToast('Could not generate receipt. Please try again.');
@@ -551,12 +552,21 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
             <div style={{ display: 'flex', gap: 12, marginTop: 16, flexWrap: 'wrap' }}>
               <button
                 onClick={() => {
-                  const link = document.createElement('a');
-                  link.href = modalConfig.url;
-                  link.download = `receipt_${order.id}.html`;
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
+                  if (modalConfig?.htmlContent) {
+                    const blob = new Blob([modalConfig.htmlContent], { type: 'text/html;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `receipt_${order.id}.html`;
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    setTimeout(() => {
+                      document.body.removeChild(link);
+                      URL.revokeObjectURL(url);
+                    }, 100);
+                    showToast('Receipt downloaded!');
+                  }
                 }}
                 style={{
                   flex: 1, minWidth: 100, padding: '14px 0',
