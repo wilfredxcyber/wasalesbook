@@ -135,17 +135,45 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   useEffect(() => {
     if (!profile.logoUrl) return;
     setLogoError(false);
-    fetch(profile.logoUrl)
-      .then(res => res.blob())
+    setBase64Logo(null);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    
+    fetch(profile.logoUrl, { 
+      signal: controller.signal,
+      mode: 'cors',
+      credentials: 'omit'
+    })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
       .then(blob => {
         const reader = new FileReader();
-        reader.onloadend = () => setBase64Logo(reader.result as string);
+        reader.onloadend = () => {
+          if (reader.result) {
+            setBase64Logo(reader.result as string);
+          } else {
+            setLogoError(true);
+          }
+        };
+        reader.onerror = () => {
+          console.error('FileReader error');
+          setLogoError(true);
+        };
         reader.readAsDataURL(blob);
       })
       .catch(err => {
-        console.error('Failed to convert logo to base64', err);
+        console.warn('Logo fetch failed - will render fallback:', err.message);
         setLogoError(true);
-      });
+      })
+      .finally(() => clearTimeout(timeoutId));
+
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [profile.logoUrl]);
 
   const isLogoLoading = profile.logoUrl && !base64Logo && !logoError;
@@ -190,7 +218,8 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
-        allowTaint: false,
+        allowTaint: true,  // Allow tainted canvas - fixes "insecure operation" on mobile
+        logging: false,
       });
       
       const dataUrl = canvas.toDataURL('image/png');
