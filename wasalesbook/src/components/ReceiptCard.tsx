@@ -127,7 +127,7 @@ export const FONTS = [
 export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
   const [generating, setGenerating] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [modalConfig, setModalConfig] = useState<{ url: string, waUrl?: string } | null>(null);
 
   const themeId = profile.receiptDesign?.themeId || RECEIPT_THEMES[0].id;
   const fontId = profile.receiptDesign?.fontId || FONTS[0].id;
@@ -177,20 +177,25 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
 
       if (isMobile) {
         // Show in-page preview — user long-presses the image to save
-        setPreviewUrl(dataUrl);
+        setModalConfig({ url: dataUrl });
         showToast('Long-press the image → Save to Photos');
       } else {
+        // Safe download for Safari/Desktop using Blob to avoid data URI download blocks
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.href = dataUrl;
+        link.href = blobUrl;
         link.download = filename;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
         showToast('Receipt saved!');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Save error:', err);
-      showToast('Could not save receipt. Please try again.');
+      showToast(err?.message || 'Could not save receipt. Please try again.');
     } finally {
       setGenerating(false);
     }
@@ -206,51 +211,40 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
       const dataUrl = await generatePng();
 
       const text = `Hi ${order.customerName},\n\nOrder Confirmed ✅\nProduct: ${order.product}\nAmount: ${formattedAmount}\nRef: ${order.id}`;
+      let waUrl = '';
+      if (order.phone) {
+        const cleanPhone = order.phone.replace(/\D/g, '');
+        waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text + '\n\n📎 Please attach the saved image.')}`;
+      }
 
       if (navigator.share) {
-        const res = await fetch(dataUrl);
-        const blob = await res.blob();
-        const file = new File([blob], filename, { type: 'image/png' });
-        const canShareFile = navigator.canShare && navigator.canShare({ files: [file] });
+        try {
+          const res = await fetch(dataUrl);
+          const blob = await res.blob();
+          const file = new File([blob], filename, { type: 'image/png' });
+          const canShareFile = navigator.canShare && navigator.canShare({ files: [file] });
 
-        if (canShareFile) {
-          await navigator.share({ title: 'Order Receipt', text, files: [file] });
-          showToast('Receipt shared!');
+          if (canShareFile) {
+            await navigator.share({ title: 'Order Receipt', text, files: [file] });
+            showToast('Receipt shared!');
+            return;
+          }
+          // Share text only — native share sheet without image file
+          await navigator.share({ title: 'Order Receipt', text });
+          showToast('Shared! Save the image separately to attach it.');
           return;
+        } catch (shareErr: any) {
+          if (shareErr?.name === 'AbortError') return;
+          console.warn('Native share failed, falling back to modal', shareErr);
         }
-        // Share text only — native share sheet without image file
-        await navigator.share({ title: 'Order Receipt', text });
-        showToast('Shared! Save the image separately to attach it.');
-        return;
       }
 
-      // No Web Share API: show preview modal on mobile, download on desktop
-      if (isMobile) {
-        setPreviewUrl(dataUrl);
-        showToast('Save the image, then share via WhatsApp');
-        if (order.phone) {
-          const cleanPhone = order.phone.replace(/\D/g, '');
-          const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text + '\n\n📎 Please attach the saved image.')}`;
-          setTimeout(() => window.open(waUrl, '_blank'), 1200);
-        }
-      } else {
-        const link = document.createElement('a');
-        link.href = dataUrl;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        showToast('Receipt saved!');
-        if (order.phone) {
-          const cleanPhone = order.phone.replace(/\D/g, '');
-          const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text + '\n\n📎 Please attach the saved image.')}`;
-          setTimeout(() => window.open(waUrl, '_blank'), 800);
-        }
-      }
+      // No Web Share API or it failed: show preview modal with explicit WhatsApp button
+      setModalConfig({ url: dataUrl, waUrl: waUrl || undefined });
+      showToast('Save the image, then share via WhatsApp');
     } catch (err: any) {
-      if (err?.name === 'AbortError') return;
       console.error('Share error:', err);
-      showToast('Could not share receipt. Please try again.');
+      showToast(err?.message || 'Could not share receipt. Please try again.');
     } finally {
       setGenerating(false);
     }
@@ -321,7 +315,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
               overflow: 'hidden'
             }}>
               {profile.logoUrl ? (
-                <img src={profile.logoUrl} alt="Logo" style={{ width: '100%', height: '100%', borderRadius: getLogoBorderRadius(), objectFit: 'cover' }} />
+                <img src={profile.logoUrl} crossOrigin="anonymous" alt="Logo" style={{ width: '100%', height: '100%', borderRadius: getLogoBorderRadius(), objectFit: 'cover' }} />
               ) : (
                 <span style={{ color: '#fff', fontSize: 24, fontWeight: 800 }}>{businessName.charAt(0).toUpperCase()}</span>
               )}
@@ -446,7 +440,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
       </div>
 
       {/* ── In-page image preview modal (mobile save / share fallback) ── */}
-      {previewUrl && (
+      {modalConfig && (
         <div
           style={{
             position: 'fixed', inset: 0, zIndex: 9999,
@@ -455,28 +449,49 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
             alignItems: 'center', justifyContent: 'center',
             padding: 16,
           }}
-          onClick={() => setPreviewUrl(null)}
+          onClick={() => setModalConfig(null)}
         >
           {/* Prevent click-through on inner content */}
           <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 400 }}>
-            <p style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center', marginBottom: 12, fontWeight: 600 }}>
+            <p style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', marginBottom: 12, fontWeight: 600 }}>
               📲 Long-press the image below → <strong style={{ color: '#fff' }}>Save to Photos</strong>
             </p>
             <img
-              src={previewUrl}
+              src={modalConfig.url}
               alt="Receipt"
               style={{ width: '100%', borderRadius: 16, display: 'block', boxShadow: '0 8px 40px rgba(0,0,0,0.4)' }}
             />
-            <button
-              onClick={() => setPreviewUrl(null)}
-              style={{
-                marginTop: 16, width: '100%', padding: '12px 0',
-                background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
-                borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
-              }}
-            >
-              Close
-            </button>
+            
+            <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+              <button
+                onClick={() => setModalConfig(null)}
+                style={{
+                  flex: 1, padding: '14px 0',
+                  background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                }}
+              >
+                Close
+              </button>
+              
+              {modalConfig.waUrl && (
+                <a
+                  href={modalConfig.waUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => setModalConfig(null)}
+                  style={{
+                    flex: 1, padding: '14px 0', textAlign: 'center',
+                    background: '#25D366', border: 'none', textDecoration: 'none',
+                    borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+                  }}
+                >
+                  <span className="material-symbols-outlined text-[18px]">chat</span>
+                  WhatsApp
+                </a>
+              )}
+            </div>
           </div>
         </div>
       )}
