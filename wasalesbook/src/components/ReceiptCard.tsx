@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from 'react'; import html2canvas from 'html2canvas';
+import { supabase } from '../lib/supabase';
 import { Order, BusinessProfile } from '../store/types';
 
 interface ReceiptCardProps {
@@ -211,18 +212,38 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   // We simply generate the image and display it in the full-screen modal.
   // The user manually long-presses to save or uses the WhatsApp button.
   const handleAction = async () => {
-    if (!receiptRef.current) return;
     try {
       setGenerating(true);
-      const canvas = await html2canvas(receiptRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        allowTaint: true,  // Allow tainted canvas - fixes "insecure operation" on mobile
-        logging: false,
-      });
       
-      const dataUrl = canvas.toDataURL('image/png');
+      // Send to server-side Edge Function to avoid canvas tainting issues
+      const response = await supabase.functions.invoke('generate-receipt', {
+        body: {
+          order,
+          profile,
+          theme,
+          font,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to generate receipt');
+      }
+
+      // Handle the SVG response
+      let dataUrl: string;
+      
+      if (response.data instanceof Uint8Array) {
+        const svgString = new TextDecoder().decode(response.data);
+        dataUrl = 'data:image/svg+xml;base64,' + btoa(svgString);
+      } else if (typeof response.data === 'string') {
+        dataUrl = response.data.startsWith('data:') 
+          ? response.data 
+          : 'data:image/svg+xml;base64,' + btoa(response.data);
+      } else {
+        // Try as blob
+        const blob = new Blob([response.data], { type: 'image/svg+xml' });
+        dataUrl = URL.createObjectURL(blob);
+      }
       
       const text = `Hi ${order.customerName},\n\nOrder Confirmed ✅\nProduct: ${order.product}\nAmount: ${formattedAmount}\nRef: ${order.id}`;
       let waUrl = '';
@@ -234,7 +255,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
       setModalConfig({ url: dataUrl, waUrl });
     } catch (err: any) {
       console.error('Generation error:', err);
-      showToast('Could not generate receipt. Please try again.');
+      showToast(err.message || 'Could not generate receipt. Please try again.');
     } finally {
       setGenerating(false);
     }
