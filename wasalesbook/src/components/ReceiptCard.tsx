@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react'; import html2canvas from 'html2canvas';
+import { useRef, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Order, BusinessProfile } from '../store/types';
 
@@ -214,48 +214,113 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   const handleAction = async () => {
     try {
       setGenerating(true);
-      
-      // Send to server-side Edge Function to avoid canvas tainting issues
-      const response = await supabase.functions.invoke('generate-receipt', {
-        body: {
-          order,
-          profile,
-          theme,
-          font,
-        },
-      });
 
-      if (response.error) {
-        throw new Error(response.error.message || 'Failed to generate receipt');
-      }
+      // Generate simple HTML receipt
+      const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Receipt - ${order.id}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+    .receipt { max-width: 400px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .header { text-align: center; border-bottom: 2px solid #006d2f; padding-bottom: 20px; margin-bottom: 20px; }
+    .logo { width: 60px; height: 60px; border-radius: 50%; background: #006d2f; color: white; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; margin: 0 auto 10px; }
+    .business-name { font-size: 18px; font-weight: bold; color: #006d2f; margin: 10px 0 5px; }
+    .receipt-label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 1px; }
+    .amount-section { text-align: center; padding: 20px 0; }
+    .amount-label { font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+    .amount { font-size: 32px; font-weight: bold; color: #006d2f; }
+    .status { display: inline-block; padding: 6px 14px; border-radius: 16px; font-size: 10px; font-weight: bold; margin-top: 10px; }
+    .status.paid { background: #dcfce7; color: #166534; }
+    .status.unpaid { background: #fef2f2; color: #991b1b; }
+    .details { background: #f9f9f9; padding: 16px; border-radius: 8px; margin-bottom: 20px; }
+    .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 13px; }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-label { color: #666; font-weight: 600; }
+    .detail-value { color: #333; font-weight: 500; text-align: right; }
+    .footer { text-align: center; font-size: 11px; color: #999; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }
+    .powered { font-size: 9px; color: #bbb; margin-top: 10px; }
+    @media print { body { background: white; } .receipt { box-shadow: none; } }
+  </style>
+</head>
+<body>
+  <div class="receipt">
+    <div class="header">
+      <div class="logo">${businessName.charAt(0).toUpperCase()}</div>
+      <div class="business-name">${businessName}</div>
+      <div class="receipt-label">Payment Receipt</div>
+    </div>
+    
+    <div class="amount-section">
+      <div class="amount-label">Total Amount</div>
+      <div class="amount">${formattedAmount}</div>
+      <div class="status ${order.paymentStatus === 'Paid' ? 'paid' : 'unpaid'}">
+        ● ${order.paymentStatus}
+      </div>
+    </div>
+    
+    <div class="details">
+      <div class="detail-row">
+        <span class="detail-label">Customer:</span>
+        <span class="detail-value">${order.customerName}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Product:</span>
+        <span class="detail-value">${order.product}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Date:</span>
+        <span class="detail-value">${dateStr}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Delivery:</span>
+        <span class="detail-value">${order.deliveryStatus}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Reference:</span>
+        <span class="detail-value">${order.id}</span>
+      </div>
+      ${order.phone ? `
+      <div class="detail-row">
+        <span class="detail-label">Phone:</span>
+        <span class="detail-value">${order.phone}</span>
+      </div>
+      ` : ''}
+      ${order.notes ? `
+      <div class="detail-row">
+        <span class="detail-label">Notes:</span>
+        <span class="detail-value">${order.notes}</span>
+      </div>
+      ` : ''}
+    </div>
+    
+    <div class="footer">
+      Thank you for your purchase ❤️
+      <div class="powered">Powered by Whatsbook</div>
+    </div>
+  </div>
+</body>
+</html>
+      `;
 
-      // Handle the SVG response
-      let dataUrl: string;
-      
-      if (response.data instanceof Uint8Array) {
-        const svgString = new TextDecoder().decode(response.data);
-        dataUrl = 'data:image/svg+xml;base64,' + btoa(svgString);
-      } else if (typeof response.data === 'string') {
-        dataUrl = response.data.startsWith('data:') 
-          ? response.data 
-          : 'data:image/svg+xml;base64,' + btoa(response.data);
-      } else {
-        // Try as blob
-        const blob = new Blob([response.data], { type: 'image/svg+xml' });
-        dataUrl = URL.createObjectURL(blob);
-      }
-      
+      // Create data URL
+      const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(htmlContent);
+
+      // Create WhatsApp share message
       const text = `Hi ${order.customerName},\n\nOrder Confirmed ✅\nProduct: ${order.product}\nAmount: ${formattedAmount}\nRef: ${order.id}`;
       let waUrl = '';
       if (order.phone) {
         const cleanPhone = order.phone.replace(/\D/g, '');
-        waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text + '\n\n📎 Please attach the saved image.')}`;
+        waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text + '\n\n📎 Please see receipt attached.')}`;
       }
 
       setModalConfig({ url: dataUrl, waUrl });
     } catch (err: any) {
       console.error('Generation error:', err);
-      showToast(err.message || 'Could not generate receipt. Please try again.');
+      showToast('Could not generate receipt. Please try again.');
     } finally {
       setGenerating(false);
     }
@@ -456,7 +521,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
         </button>
       </div>
 
-      {/* ── In-page image preview modal (mobile save / share fallback) ── */}
+      {/* ── Receipt preview modal with download button ── */}
       {modalConfig && (
         <div
           style={{
@@ -469,26 +534,38 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
           onClick={() => setModalConfig(null)}
         >
           {/* Prevent click-through on inner content */}
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 400 }}>
-            <p style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', marginBottom: 12, fontWeight: 600 }}>
-              📲 Long-press the image below → <strong style={{ color: '#fff' }}>Save to Photos</strong>
-            </p>
-            <img
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column' }}>
+            <iframe
               src={modalConfig.url}
-              alt="Receipt"
-              style={{ width: '100%', borderRadius: 16, display: 'block', boxShadow: '0 8px 40px rgba(0,0,0,0.4)' }}
+              title="Receipt Preview"
+              style={{ 
+                width: '100%', 
+                height: 500, 
+                border: 'none',
+                borderRadius: 16, 
+                background: 'white',
+                boxShadow: '0 8px 40px rgba(0,0,0,0.4)'
+              }}
             />
             
-            <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+            <div style={{ display: 'flex', gap: 12, marginTop: 16, flexWrap: 'wrap' }}>
               <button
-                onClick={() => setModalConfig(null)}
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = modalConfig.url;
+                  link.download = `receipt_${order.id}.html`;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}
                 style={{
-                  flex: 1, padding: '14px 0',
-                  background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
+                  flex: 1, minWidth: 100, padding: '14px 0',
+                  background: '#10b981', border: 'none',
                   borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
                 }}
               >
-                Close
+                <span>⬇️</span> Download
               </button>
               
               {modalConfig.waUrl && (
@@ -498,16 +575,26 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
                   rel="noreferrer"
                   onClick={() => setModalConfig(null)}
                   style={{
-                    flex: 1, padding: '14px 0', textAlign: 'center',
+                    flex: 1, minWidth: 100, padding: '14px 0', textAlign: 'center',
                     background: '#25D366', border: 'none', textDecoration: 'none',
                     borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
                   }}
                 >
-                  <span className="material-symbols-outlined text-[18px]">chat</span>
-                  WhatsApp
+                  <span>💬</span> WhatsApp
                 </a>
               )}
+              
+              <button
+                onClick={() => setModalConfig(null)}
+                style={{
+                  flex: 1, minWidth: 100, padding: '14px 0',
+                  background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                }}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
