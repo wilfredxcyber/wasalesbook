@@ -127,6 +127,7 @@ export const FONTS = [
 export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
   const [generating, setGenerating] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const themeId = profile.receiptDesign?.themeId || RECEIPT_THEMES[0].id;
   const fontId = profile.receiptDesign?.fontId || FONTS[0].id;
@@ -159,37 +160,32 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   // Detect mobile browsers
   const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
+  // ── Helper: generate PNG from receipt div ──
+  const generatePng = () =>
+    toPng(receiptRef.current!, { cacheBust: true, pixelRatio: 2, backgroundColor: '#ffffff' });
+
   // ── Save Image ──
-  // Desktop: trigger anchor download. Mobile: open image in new tab (user long-presses to save).
+  // On mobile: show an in-page preview modal (long-press → Save Image).
+  // window.open() after an await is blocked by mobile browsers as "insecure",
+  // so we avoid it entirely and display the image inside the page.
+  // On desktop: trigger a normal anchor download.
   const handleSave = async () => {
     if (!receiptRef.current) return;
     try {
       setGenerating(true);
-      const dataUrl = await toPng(receiptRef.current, {
-        cacheBust: true,
-        pixelRatio: 2,
-        backgroundColor: '#ffffff',
-      });
+      const dataUrl = await generatePng();
 
       if (isMobile) {
-        // Convert data URL → Blob → blob: URL (safe for mobile browsers, avoids "insecure operation")
-        const res = await fetch(dataUrl);
-        const blob = await res.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        const newTab = window.open(blobUrl, '_blank');
-        if (newTab) {
-          showToast('Long-press the image to save it!');
-          // Revoke after a delay to free memory
-          setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
-        } else {
-          URL.revokeObjectURL(blobUrl);
-          showToast('Please allow popups, then try again.');
-        }
+        // Show in-page preview — user long-presses the image to save
+        setPreviewUrl(dataUrl);
+        showToast('Long-press the image → Save to Photos');
       } else {
         const link = document.createElement('a');
         link.href = dataUrl;
         link.download = filename;
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
         showToast('Receipt saved!');
       }
     } catch (err) {
@@ -200,26 +196,21 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
     }
   };
 
-  // ── Share: Web Share API with file support check → fallback ──
+  // ── Share ──
+  // navigator.share() with files requires HTTPS and browser support.
+  // Fallback: show in-page preview so user can save then share manually.
   const handleShare = async () => {
     if (!receiptRef.current) return;
     try {
       setGenerating(true);
-      const dataUrl = await toPng(receiptRef.current, {
-        cacheBust: true,
-        pixelRatio: 2,
-        backgroundColor: '#ffffff',
-      });
+      const dataUrl = await generatePng();
 
       const text = `Hi ${order.customerName},\n\nOrder Confirmed ✅\nProduct: ${order.product}\nAmount: ${formattedAmount}\nRef: ${order.id}`;
 
-      // Try Web Share API with file (requires HTTPS + browser support)
       if (navigator.share) {
         const res = await fetch(dataUrl);
         const blob = await res.blob();
         const file = new File([blob], filename, { type: 'image/png' });
-
-        // canShare guard — not all mobile browsers support file sharing
         const canShareFile = navigator.canShare && navigator.canShare({ files: [file] });
 
         if (canShareFile) {
@@ -227,27 +218,37 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
           showToast('Receipt shared!');
           return;
         }
-
-        // Share text only (no file) — still opens native share sheet
+        // Share text only — native share sheet without image file
         await navigator.share({ title: 'Order Receipt', text });
-        showToast('Shared! (image not attached — save it separately)');
+        showToast('Shared! Save the image separately to attach it.');
         return;
       }
 
-      // Desktop / unsupported fallback: download + open WhatsApp
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = filename;
-      link.click();
-      showToast('Receipt saved!');
-
-      if (order.phone) {
-        const cleanPhone = order.phone.replace(/\D/g, '');
-        const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text + '\n\n📎 Please attach the saved image.')}`;
-        setTimeout(() => window.open(waUrl, '_blank'), 800);
+      // No Web Share API: show preview modal on mobile, download on desktop
+      if (isMobile) {
+        setPreviewUrl(dataUrl);
+        showToast('Save the image, then share via WhatsApp');
+        if (order.phone) {
+          const cleanPhone = order.phone.replace(/\D/g, '');
+          const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text + '\n\n📎 Please attach the saved image.')}`;
+          setTimeout(() => window.open(waUrl, '_blank'), 1200);
+        }
+      } else {
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast('Receipt saved!');
+        if (order.phone) {
+          const cleanPhone = order.phone.replace(/\D/g, '');
+          const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text + '\n\n📎 Please attach the saved image.')}`;
+          setTimeout(() => window.open(waUrl, '_blank'), 800);
+        }
       }
     } catch (err: any) {
-      if (err?.name === 'AbortError') return; // user cancelled share sheet
+      if (err?.name === 'AbortError') return;
       console.error('Share error:', err);
       showToast('Could not share receipt. Please try again.');
     } finally {
