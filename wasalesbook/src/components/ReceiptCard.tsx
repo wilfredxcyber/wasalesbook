@@ -172,19 +172,17 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
       });
 
       if (isMobile) {
-        // Open image in new tab — user can long-press → "Save Image"
-        const newTab = window.open();
+        // Convert data URL → Blob → blob: URL (safe for mobile browsers, avoids "insecure operation")
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const newTab = window.open(blobUrl, '_blank');
         if (newTab) {
-          newTab.document.write(`
-            <html><head><title>Receipt</title>
-            <meta name="viewport" content="width=device-width,initial-scale=1">
-            <style>body{margin:0;background:#111;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;}
-            img{max-width:100%;height:auto;display:block;}</style></head>
-            <body><img src="${dataUrl}" alt="Receipt" /></body></html>
-          `);
-          newTab.document.close();
           showToast('Long-press the image to save it!');
+          // Revoke after a delay to free memory
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
         } else {
+          URL.revokeObjectURL(blobUrl);
           showToast('Please allow popups, then try again.');
         }
       } else {
