@@ -1,5 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
-import html2canvas from 'html2canvas';
+import { useRef, useState } from 'react'; import { toPng } from 'html-to-image';
 import { Order, BusinessProfile } from '../store/types';
 
 interface ReceiptCardProps {
@@ -42,7 +41,7 @@ export const RECEIPT_THEMES = [
     primaryText: '#60a5fa',
     secondaryText: '#94a3b8',
     valueText: '#f8fafc',
-    detailsBg: '#1e293b', 
+    detailsBg: '#1e293b',
     detailsBorder: '#334155',
     brandColor: '#3b82f6',
     zigzagLine: '#334155',
@@ -128,31 +127,7 @@ export const FONTS = [
 export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
   const [generating, setGenerating] = useState(false);
-  const [precomputedBlob, setPrecomputedBlob] = useState<Blob | null>(null);
-  const [base64Logo, setBase64Logo] = useState<string | null>(null);
-  const [showImageModal, setShowImageModal] = useState<{ url: string; isShare?: boolean; text?: string; phoneUrl?: string } | null>(null);
 
-  // Convert remote logo to base64 to completely avoid Safari canvas tainting/CORS cache issues
-  useEffect(() => {
-    if (!profile.logoUrl) {
-      setBase64Logo(null);
-      return;
-    }
-    // Append a timestamp to heavily bypass Safari caching non-CORS images
-    const fetchUrl = `${profile.logoUrl}?t=${new Date().getTime()}`;
-    fetch(fetchUrl, { mode: 'cors' })
-      .then(res => res.blob())
-      .then(blob => {
-        const reader = new FileReader();
-        reader.onloadend = () => setBase64Logo(reader.result as string);
-        reader.readAsDataURL(blob);
-      })
-      .catch(err => {
-        console.error('Failed to convert logo to base64', err);
-        setBase64Logo(profile.logoUrl); // fallback
-      });
-  }, [profile.logoUrl]);
-  
   const themeId = profile.receiptDesign?.themeId || RECEIPT_THEMES[0].id;
   const fontId = profile.receiptDesign?.fontId || FONTS[0].id;
   const customBg = profile.receiptDesign?.customBgColor || '#ffffff';
@@ -170,203 +145,86 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
       secondaryText: customText,
       valueText: customText,
       zigzagBg: customBg,
-      zigzagLine: customAccent, // Use accent color for the divider line
+      zigzagLine: customAccent,
     };
   }
-  
-  const font = FONTS.find(f => f.id === fontId) || FONTS[0];
 
+  const font = FONTS.find(f => f.id === fontId) || FONTS[0];
   const businessName = profile.userName || 'Whatsbook';
   const currency = profile.currencySymbol || '₦';
   const formattedAmount = `${currency}${order.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
   const dateStr = formatDate(order.createdAt);
+  const filename = `receipt_${order.id}.png`;
 
-  const captureReceipt = async (): Promise<Blob | null> => {
-    if (!receiptRef.current) return null;
-    try {
-      const canvas = await html2canvas(receiptRef.current, {
-        scale: 2, 
-        backgroundColor: null, 
-        useCORS: true,
-        allowTaint: false,
-        logging: false
-      });
-      return new Promise<Blob | null>((resolve, reject) => {
-         try {
-           canvas.toBlob(blob => resolve(blob), 'image/png', 1.0);
-         } catch(e) {
-           console.error("Canvas taint error:", e);
-           reject(e);
-         }
-      });
-    } catch (err) {
-      console.error('html2canvas error', err);
-      return null;
-    }
-  };
-
-  // Re-precompute when design changes 
-  useEffect(() => {
-    // Clear old blob when design changes to prevent sending stale images
-    setPrecomputedBlob(null);
-    
-    const timer = setTimeout(() => {
-      captureReceipt().then(blob => {
-        if (blob) setPrecomputedBlob(blob);
-      });
-    }, 1000); // 1s delay to let everything settle
-    return () => clearTimeout(timer);
-  }, [
-    themeId, fontId, 
-    profile.receiptDesign?.dividerStyle, 
-    profile.receiptDesign?.logoShape, 
-    profile.receiptDesign?.footerMessage,
-    profile.receiptDesign?.watermark,
-    customBg, customText, customAccent,
-    profile.logoUrl, profile.userName, profile.currencySymbol
-  ]);
-
-  const downloadBlob = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    setTimeout(() => {
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }, 200);
-  };
-
-  const handleDownload = async () => {
+  // ── Save Image: capture the receipt div and trigger a direct PNG download ──
+  const handleSave = async () => {
+    if (!receiptRef.current) return;
     try {
       setGenerating(true);
-      // Try to use precomputed blob first, capture fresh if missing
-      let blob = precomputedBlob;
-      if (!blob) {
-        blob = await captureReceipt();
-      }
-      
-      if (!blob) { 
-        showToast('Failed to generate receipt image'); 
-        return; 
-      }
-      
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      
-      // BYPASS FIX: On mobile, native share and blobs are heavily restricted or buggy.
-      // We instantly show the user the rendered image full-screen so they can hold to save.
-      if (isMobile) {
-        const objectUrl = URL.createObjectURL(blob);
-        setShowImageModal({ url: objectUrl });
-        return;
-      }
-
-      // Desktop: Attempt native share if available (helps on macOS Safari/Chrome)
-      if (navigator.share && window.isSecureContext) {
-        try {
-          const file = new File([blob], filename, { type: 'image/png' });
-          if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({ files: [file], title: 'Order Receipt' });
-            showToast('Receipt saved!');
-            return;
-          }
-        } catch (shareErr: any) {
-          if (shareErr.name === 'AbortError') return;
-        }
-      }
-
-      // Desktop: direct download fallback
-
-      // Desktop: direct download
-      downloadBlob(blob, filename);
-      showToast('Receipt saved to device!');
-    } catch (err: any) {
-      console.error('Download error:', err);
-      showToast('Action failed: Please refresh and try again');
+      const dataUrl = await toPng(receiptRef.current, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+      });
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = filename;
+      link.click();
+      showToast('Receipt saved!');
+    } catch (err) {
+      console.error('Save error:', err);
+      showToast('Could not save receipt. Please try again.');
     } finally {
       setGenerating(false);
     }
   };
 
-  const handleShareWhatsApp = async () => {
+  // ── Share: capture → Web Share API → fallback to download ──
+  const handleShare = async () => {
+    if (!receiptRef.current) return;
     try {
       setGenerating(true);
-      let blob = precomputedBlob;
-      if (!blob) {
-        blob = await captureReceipt();
-      }
-      if (!blob) {
-        showToast('Failed to generate receipt image');
+      const dataUrl = await toPng(receiptRef.current, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+      });
+
+      const text = `Hi ${order.customerName},\n\nOrder Confirmed ✅\nProduct: ${order.product}\nAmount: ${formattedAmount}\nRef: ${order.id}`;
+
+      // Web Share API (works on Android Chrome, iOS Safari)
+      if (navigator.share) {
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        const file = new File([blob], filename, { type: 'image/png' });
+        await navigator.share({ title: 'Order Receipt', text, files: [file] });
+        showToast('Receipt shared!');
         return;
       }
 
-      const filename = `receipt_${order.id}.png`;
-      const text = `Hi ${order.customerName},\n\nOrder Confirmed ✅\nProduct: ${order.product}\nAmount: ${formattedAmount}\nDelivery: ${order.deliveryStatus}\nRef: ${order.id}\n\n${order.paymentStatus === 'Unpaid' && profile.paymentDetails ? `Please make payment to:\n${profile.paymentDetails}` : ''}`;
+      // Fallback: download + open WhatsApp if phone known
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = filename;
+      link.click();
+      showToast('Receipt saved!');
 
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-      let whatsappUrl = '';
       if (order.phone) {
         const cleanPhone = order.phone.replace(/\D/g, '');
-        whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text + (isMobile ? '\n\n📎 *Image shown on screen — please save and attach it!*' : '\n\n📎 *Image saved! Please attach it!*'))}`;
-      }
-
-      // BYPASS FIX: Same as download, bypass flaky share sheet on mobile.
-      if (isMobile) {
-        const objectUrl = URL.createObjectURL(blob);
-        setShowImageModal({ 
-          url: objectUrl, 
-          isShare: true, 
-          text, 
-          phoneUrl: whatsappUrl || undefined 
-        });
-        return;
-      }
-
-      // Desktop: Native Share
-      if (navigator.share && window.isSecureContext) {
-        try {
-          const file = new File([blob], filename, { type: 'image/png' });
-          const shareData: ShareData = { files: [file], title: 'Order Receipt', text };
-          if (navigator.canShare && navigator.canShare(shareData)) {
-            await navigator.share(shareData);
-            if (whatsappUrl) {
-              setTimeout(() => { window.open(whatsappUrl, '_blank'); }, 500);
-            }
-            return;
-          }
-        } catch (shareErr: any) {
-          if (shareErr.name === 'AbortError') return;
-        }
-      }
-
-      // Desktop fallback: download + WhatsApp link
-
-      // Desktop fallback: download + WhatsApp link
-      downloadBlob(blob, filename);
-      if (whatsappUrl) {
-        showToast('Image downloaded. Opening WhatsApp...');
-        setTimeout(() => { window.open(whatsappUrl, '_blank'); }, 800);
-      } else {
-        showToast('Receipt downloaded!');
-        try {
-          if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
-            await navigator.clipboard.writeText(text);
-          }
-        } catch (e) {}
+        const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text + '\n\n📎 Please attach the saved image.')}`;
+        setTimeout(() => window.open(waUrl, '_blank'), 800);
       }
     } catch (err: any) {
+      if (err?.name === 'AbortError') return; // user cancelled share sheet
       console.error('Share error:', err);
-      showToast('Action failed: Try again or copy manually');
+      showToast('Could not share receipt. Please try again.');
     } finally {
       setGenerating(false);
     }
   };
 
   const isDark = theme.id === 'midnight' || theme.id === 'mono';
-  
+
   const logoShape = profile.receiptDesign?.logoShape || 'circle';
   const dividerStyle = profile.receiptDesign?.dividerStyle || 'zigzag';
   const footerMessage = profile.receiptDesign?.footerMessage?.trim() || 'Thank you for your purchase ❤️';
@@ -429,10 +287,8 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
               boxShadow: theme.logoShadow,
               overflow: 'hidden'
             }}>
-              {base64Logo ? (
-                <img src={base64Logo} alt="Logo" style={{ width: '100%', height: '100%', borderRadius: getLogoBorderRadius(), objectFit: 'cover' }} />
-              ) : profile.logoUrl ? (
-                <span style={{ color: '#fff', fontSize: 24, fontWeight: 800 }}>...</span>
+              {profile.logoUrl ? (
+                <img src={profile.logoUrl} alt="Logo" style={{ width: '100%', height: '100%', borderRadius: getLogoBorderRadius(), objectFit: 'cover' }} />
               ) : (
                 <span style={{ color: '#fff', fontSize: 24, fontWeight: 800 }}>{businessName.charAt(0).toUpperCase()}</span>
               )}
@@ -486,7 +342,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
                 {watermark.replace('_', ' ')}
               </div>
             )}
-            
+
             {[
               { label: 'Customer', value: order.customerName },
               { label: 'Product', value: order.product },
@@ -531,7 +387,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
       {/* ── Action buttons ── */}
       <div className="flex gap-3 max-w-sm mx-auto">
         <button
-          onClick={handleDownload}
+          onClick={handleSave}
           disabled={generating}
           className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-surface-container-high text-on-surface font-bold rounded-xl active:scale-95 transition-transform disabled:opacity-50"
         >
@@ -543,7 +399,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
           Save Image
         </button>
         <button
-          onClick={handleShareWhatsApp}
+          onClick={handleShare}
           disabled={generating}
           className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-[#25D366] text-white font-bold rounded-xl active:scale-95 transition-transform shadow-lg disabled:opacity-50"
         >
@@ -555,75 +411,6 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
           Share
         </button>
       </div>
-
-      {/* MODAL BYPASS: Displays the generated image for native mobile OS sharing/saving */}
-      {showImageModal && (
-        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/95 px-4 py-8 animate-in fade-in zoom-in duration-200">
-          <div className="absolute top-0 right-0 left-0 p-4 flex justify-end">
-            <button 
-              onClick={() => {
-                 URL.revokeObjectURL(showImageModal.url);
-                 setShowImageModal(null);
-              }} 
-              className="w-10 h-10 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center text-white active:scale-90 transition-all z-10"
-            >
-              <span className="material-symbols-outlined">close</span>
-            </button>
-          </div>
-          
-          <div className="flex-1 w-full flex flex-col items-center justify-center overflow-auto py-8 mt-10">
-            <p className="text-white font-bold text-center mb-6 animate-pulse px-8 text-sm">
-              Long-press the image below to Save!
-            </p>
-            
-            <img 
-              src={showImageModal.url} 
-              alt="Final Receipt" 
-              className="w-full max-w-sm h-auto rounded-xl shadow-[0_0_40px_rgba(37,211,102,0.15)] object-contain drop-shadow-2xl mb-8 border border-[#25D366]/30"
-              style={{ pointerEvents: 'auto' }} // Ensure long-press works naturally
-            />
-            
-            {showImageModal.isShare && showImageModal.phoneUrl && (
-              <a 
-                href={showImageModal.phoneUrl} 
-                target="_blank" 
-                rel="noreferrer"
-                className="w-full max-w-sm flex items-center justify-center gap-2 py-4 bg-[#25D366] text-white font-bold rounded-xl shadow-[0_8px_30px_rgba(37,211,102,0.3)] active:scale-95 transition-transform"
-                onClick={() => {
-                   // Clean up after they click
-                   setTimeout(() => {
-                     URL.revokeObjectURL(showImageModal.url);
-                     setShowImageModal(null);
-                   }, 1000);
-                }}
-              >
-                <span className="material-symbols-outlined">chat</span>
-                Continue to WhatsApp
-              </a>
-            )}
-            
-            {showImageModal.isShare && !showImageModal.phoneUrl && (
-              <button 
-                onClick={async () => {
-                  try {
-                    if (navigator.clipboard) await navigator.clipboard.writeText(showImageModal.text || '');
-                    showToast('Details copied! Now share image manually.');
-                  } catch(e) {}
-                }}
-                className="w-full max-w-sm flex items-center justify-center gap-2 py-4 bg-white/10 border border-white/20 text-white font-bold rounded-xl active:scale-95 transition-transform"
-              >
-                <span className="material-symbols-outlined">content_copy</span>
-                Copy Details
-              </button>
-            )}
-          </div>
-          
-          <p className="text-white/40 text-[10px] text-center mb-0 mt-auto flex items-center justify-center gap-2 pt-4 pb-safe font-medium">
-            <span className="material-symbols-outlined text-[12px]">security</span>
-            Bypassing browser security restrictions
-          </p>
-        </div>
-      )}
     </div>
   );
 }
