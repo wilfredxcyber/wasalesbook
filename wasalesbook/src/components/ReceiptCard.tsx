@@ -178,66 +178,23 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   const dateStr = formatDate(order.createdAt);
   const filename = `receipt_${order.id}.png`;
 
-  // Detect mobile browsers
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-  // ── Helper: generate PNG from receipt div ──
-  const generatePng = async () => {
-    const canvas = await html2canvas(receiptRef.current!, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-      allowTaint: false,
-    });
-    return canvas.toDataURL('image/png');
-  };
-
-  // ── Save Image ──
-  // On mobile: show an in-page preview modal (long-press → Save Image).
-  // window.open() after an await is blocked by mobile browsers as "insecure",
-  // so we avoid it entirely and display the image inside the page.
-  // On desktop: trigger a normal anchor download.
-  const handleSave = async () => {
+  // ── Save / Share Image ──
+  // Ultra-basic implementation: No native share APIs, no programmatic downloads.
+  // We simply generate the image and display it in the full-screen modal.
+  // The user manually long-presses to save or uses the WhatsApp button.
+  const handleAction = async () => {
     if (!receiptRef.current) return;
     try {
       setGenerating(true);
-      const dataUrl = await generatePng();
-
-      if (isMobile) {
-        // Show in-page preview — user long-presses the image to save
-        setModalConfig({ url: dataUrl });
-        showToast('Long-press the image → Save to Photos');
-      } else {
-        // Safe download for Safari/Desktop using Blob to avoid data URI download blocks
-        const res = await fetch(dataUrl);
-        const blob = await res.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-        showToast('Receipt saved!');
-      }
-    } catch (err: any) {
-      console.error('Save error:', err);
-      showToast(err?.message || 'Could not save receipt. Please try again.');
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  // ── Share ──
-  // navigator.share() with files requires HTTPS and browser support.
-  // Fallback: show in-page preview so user can save then share manually.
-  const handleShare = async () => {
-    if (!receiptRef.current) return;
-    try {
-      setGenerating(true);
-      const dataUrl = await generatePng();
-
+      const canvas = await html2canvas(receiptRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        allowTaint: false,
+      });
+      
+      const dataUrl = canvas.toDataURL('image/png');
+      
       const text = `Hi ${order.customerName},\n\nOrder Confirmed ✅\nProduct: ${order.product}\nAmount: ${formattedAmount}\nRef: ${order.id}`;
       let waUrl = '';
       if (order.phone) {
@@ -245,38 +202,17 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
         waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text + '\n\n📎 Please attach the saved image.')}`;
       }
 
-      if (navigator.share) {
-        try {
-          const res = await fetch(dataUrl);
-          const blob = await res.blob();
-          const file = new File([blob], filename, { type: 'image/png' });
-          const canShareFile = navigator.canShare && navigator.canShare({ files: [file] });
-
-          if (canShareFile) {
-            await navigator.share({ title: 'Order Receipt', text, files: [file] });
-            showToast('Receipt shared!');
-            return;
-          }
-          // Share text only — native share sheet without image file
-          await navigator.share({ title: 'Order Receipt', text });
-          showToast('Shared! Save the image separately to attach it.');
-          return;
-        } catch (shareErr: any) {
-          if (shareErr?.name === 'AbortError') return;
-          console.warn('Native share failed, falling back to modal', shareErr);
-        }
-      }
-
-      // No Web Share API or it failed: show preview modal with explicit WhatsApp button
-      setModalConfig({ url: dataUrl, waUrl: waUrl || undefined });
-      showToast('Save the image, then share via WhatsApp');
+      setModalConfig({ url: dataUrl, waUrl });
     } catch (err: any) {
-      console.error('Share error:', err);
-      showToast(err?.message || 'Could not share receipt. Please try again.');
+      console.error('Generation error:', err);
+      showToast('Could not generate receipt. Please try again.');
     } finally {
       setGenerating(false);
     }
   };
+
+  const handleSave = handleAction;
+  const handleShare = handleAction;
 
   const isDark = theme.id === 'midnight' || theme.id === 'mono';
 
