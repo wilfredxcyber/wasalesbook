@@ -444,6 +444,42 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
           Share
         </button>
       </div>
+
+      {/* ── In-page image preview modal (mobile save / share fallback) ── */}
+      {previewUrl && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.88)',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            padding: 16,
+          }}
+          onClick={() => setPreviewUrl(null)}
+        >
+          {/* Prevent click-through on inner content */}
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 400 }}>
+            <p style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center', marginBottom: 12, fontWeight: 600 }}>
+              📲 Long-press the image below → <strong style={{ color: '#fff' }}>Save to Photos</strong>
+            </p>
+            <img
+              src={previewUrl}
+              alt="Receipt"
+              style={{ width: '100%', borderRadius: 16, display: 'block', boxShadow: '0 8px 40px rgba(0,0,0,0.4)' }}
+            />
+            <button
+              onClick={() => setPreviewUrl(null)}
+              style={{
+                marginTop: 16, width: '100%', padding: '12px 0',
+                background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
