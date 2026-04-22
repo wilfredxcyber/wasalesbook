@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react'; import { toPng } from 'html-to-image';
+import { useRef, useState, useEffect } from 'react'; import html2canvas from 'html2canvas';
 import { Order, BusinessProfile } from '../store/types';
 
 interface ReceiptCardProps {
@@ -175,8 +175,15 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   // ── Helper: generate PNG from receipt div ──
-  const generatePng = () =>
-    toPng(receiptRef.current!, { cacheBust: true, pixelRatio: 2, backgroundColor: '#ffffff' });
+  const generatePng = async () => {
+    const canvas = await html2canvas(receiptRef.current!, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      allowTaint: false,
+    });
+    return canvas.toDataURL('image/png');
+  };
 
   // ── Save Image ──
   // On mobile: show an in-page preview modal (long-press → Save Image).
