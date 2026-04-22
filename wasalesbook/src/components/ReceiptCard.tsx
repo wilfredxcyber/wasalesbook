@@ -156,7 +156,11 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   const dateStr = formatDate(order.createdAt);
   const filename = `receipt_${order.id}.png`;
 
-  // ── Save Image: capture the receipt div and trigger a direct PNG download ──
+  // Detect mobile browsers
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  // ── Save Image ──
+  // Desktop: trigger anchor download. Mobile: open image in new tab (user long-presses to save).
   const handleSave = async () => {
     if (!receiptRef.current) return;
     try {
@@ -166,11 +170,30 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
         pixelRatio: 2,
         backgroundColor: '#ffffff',
       });
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = filename;
-      link.click();
-      showToast('Receipt saved!');
+
+      if (isMobile) {
+        // Open image in new tab — user can long-press → "Save Image"
+        const newTab = window.open();
+        if (newTab) {
+          newTab.document.write(`
+            <html><head><title>Receipt</title>
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <style>body{margin:0;background:#111;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;}
+            img{max-width:100%;height:auto;display:block;}</style></head>
+            <body><img src="${dataUrl}" alt="Receipt" /></body></html>
+          `);
+          newTab.document.close();
+          showToast('Long-press the image to save it!');
+        } else {
+          showToast('Please allow popups, then try again.');
+        }
+      } else {
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = filename;
+        link.click();
+        showToast('Receipt saved!');
+      }
     } catch (err) {
       console.error('Save error:', err);
       showToast('Could not save receipt. Please try again.');
@@ -179,7 +202,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
     }
   };
 
-  // ── Share: capture → Web Share API → fallback to download ──
+  // ── Share: Web Share API with file support check → fallback ──
   const handleShare = async () => {
     if (!receiptRef.current) return;
     try {
@@ -192,17 +215,28 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
 
       const text = `Hi ${order.customerName},\n\nOrder Confirmed ✅\nProduct: ${order.product}\nAmount: ${formattedAmount}\nRef: ${order.id}`;
 
-      // Web Share API (works on Android Chrome, iOS Safari)
+      // Try Web Share API with file (requires HTTPS + browser support)
       if (navigator.share) {
         const res = await fetch(dataUrl);
         const blob = await res.blob();
         const file = new File([blob], filename, { type: 'image/png' });
-        await navigator.share({ title: 'Order Receipt', text, files: [file] });
-        showToast('Receipt shared!');
+
+        // canShare guard — not all mobile browsers support file sharing
+        const canShareFile = navigator.canShare && navigator.canShare({ files: [file] });
+
+        if (canShareFile) {
+          await navigator.share({ title: 'Order Receipt', text, files: [file] });
+          showToast('Receipt shared!');
+          return;
+        }
+
+        // Share text only (no file) — still opens native share sheet
+        await navigator.share({ title: 'Order Receipt', text });
+        showToast('Shared! (image not attached — save it separately)');
         return;
       }
 
-      // Fallback: download + open WhatsApp if phone known
+      // Desktop / unsupported fallback: download + open WhatsApp
       const link = document.createElement('a');
       link.href = dataUrl;
       link.download = filename;
