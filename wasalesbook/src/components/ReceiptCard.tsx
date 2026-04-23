@@ -225,11 +225,11 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   // ── Helper: Generate Image File ──
   const generateReceiptFile = async (): Promise<File> => {
     if (!receiptRef.current) throw new Error('Receipt ref missing');
+    // No backgroundColor override - let the theme background show exactly as on-screen
+    // No skipFonts - system fonts render fine; skipFonts breaks layout
     const dataUrl = await toPng(receiptRef.current, {
       cacheBust: true,
       pixelRatio: 2,
-      // No backgroundColor override — use the theme's actual background
-      // No skipFonts — capture fonts exactly as the preview shows
     });
     const blob = dataURItoBlob(dataUrl);
     return new File([blob], `receipt_${order.id}.png`, { type: 'image/png' });
@@ -305,10 +305,31 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
     return '50%'; // circle
   };
 
+  // Inline SVG dividers — safe for html-to-image (no external resources)
+  const renderZigzag = () => (
+    <div style={{ margin: '16px -24px', overflow: 'hidden', lineHeight: 0 }}>
+      <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="12" preserveAspectRatio="none">
+        <path d="M0,12 L8,0 L16,12 L24,0 L32,12 L40,0 L48,12 L56,0 L64,12 L72,0 L80,12 L88,0 L96,12 L104,0 L112,12 L120,0 L128,12 L136,0 L144,12 L152,0 L160,12 L168,0 L176,12 L184,0 L192,12 L200,0 L208,12 L216,0 L224,12 L232,0 L240,12 L248,0 L256,12 L264,0 L272,12 L280,0 L288,12 L296,0 L304,12 L312,0 L320,12 L328,0 L336,12 L344,0 L352,12 L360,0 L368,12"
+          fill="none" stroke={theme.zigzagLine} strokeWidth="1.5"/>
+      </svg>
+    </div>
+  );
+
+  const renderWavy = () => (
+    <div style={{ margin: '16px -24px', overflow: 'hidden', lineHeight: 0 }}>
+      <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="12" preserveAspectRatio="none">
+        <path d="M0,6 C12,0 12,12 24,6 C36,0 36,12 48,6 C60,0 60,12 72,6 C84,0 84,12 96,6 C108,0 108,12 120,6 C132,0 132,12 144,6 C156,0 156,12 168,6 C180,0 180,12 192,6 C204,0 204,12 216,6 C228,0 228,12 240,6 C252,0 252,12 264,6 C276,0 276,12 288,6 C300,0 300,12 312,6 C324,0 324,12 336,6 C348,0 348,12 360,6 C372,0 372,12 384,6"
+          fill="none" stroke={theme.zigzagLine} strokeWidth="1.5"/>
+      </svg>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       {/* ── The visual receipt ── */}
-      <div ref={receiptRef} style={{ width: 360 }} className="mx-auto">
+      <div style={{ width: 360 }} className="mx-auto">
+        {/* receiptRef wraps only the styled card so the exported image has the correct theme background */}
+        <div ref={receiptRef}>
         <div style={{
           background: theme.cardLg,
           borderRadius: 20,
@@ -354,27 +375,8 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
           </div>
 
           {/* Separator */}
-          {dividerStyle === 'zigzag' && (
-            <div style={{
-              margin: '16px -24px',
-              height: 12,
-              background: `linear-gradient(135deg, ${theme.zigzagBg} 25%, transparent 25%) -10px 0,
-                           linear-gradient(225deg, ${theme.zigzagBg} 25%, transparent 25%) -10px 0,
-                           linear-gradient(315deg, ${theme.zigzagBg} 25%, transparent 25%),
-                           linear-gradient(45deg, ${theme.zigzagBg} 25%, transparent 25%)`,
-              backgroundSize: '20px 12px',
-              backgroundColor: theme.zigzagLine,
-            }} />
-          )}
-          {dividerStyle === 'wavy' && (
-            <div style={{
-              margin: '16px -24px',
-              height: 10,
-              background: `radial-gradient(circle at 10px -2px, transparent 8px, ${theme.zigzagLine} 8px, ${theme.zigzagLine} 10px, transparent 10px) 0 0 / 20px 10px,
-                           radial-gradient(circle at 0px -2px, transparent 8px, ${theme.zigzagLine} 8px, ${theme.zigzagLine} 10px, transparent 10px) 10px 0 / 20px 10px`,
-              backgroundColor: 'transparent',
-            }} />
-          )}
+          {dividerStyle === 'zigzag' && renderZigzag()}
+          {dividerStyle === 'wavy' && renderWavy()}
           {dividerStyle === 'dashed' && (
             <div style={{ margin: '16px 0', borderTop: `2px dashed ${theme.zigzagLine}` }} />
           )}
@@ -453,6 +455,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
             <p style={{ fontSize: 8, color: isDark ? '#475569' : '#cbd5e1', marginTop: 4 }}>Powered by Whatsbook</p>
           </div>
         </div>
+      </div>
       </div>
 
       {/* ── Action buttons ── */}
