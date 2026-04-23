@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
+import { toPng } from 'html-to-image';
 import { supabase } from '../lib/supabase';
 import { Order, BusinessProfile } from '../store/types';
 
@@ -217,14 +218,12 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
     try {
       setGenerating(true);
 
-      const canvas = await html2canvas(receiptRef.current, {
-        scale: 2,
-        useCORS: true,
+      const dataUrl = await toPng(receiptRef.current, {
+        cacheBust: true,
+        pixelRatio: 2,
         backgroundColor: '#ffffff',
-        allowTaint: false,
+        skipFonts: true, // Prevents iOS Safari from crashing on font fetching
       });
-      
-      const dataUrl = canvas.toDataURL('image/png');
       
       // Pre-compute the Blob/File so the download button can be 100% synchronous (bypassing iOS blockers)
       const res = await fetch(dataUrl);
@@ -256,26 +255,6 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   const dividerStyle = profile.receiptDesign?.dividerStyle || 'zigzag';
   const footerMessage = profile.receiptDesign?.footerMessage?.trim() || 'Thank you for your purchase ❤️';
   const watermark = profile.receiptDesign?.watermark || 'none';
-
-  const renderZigzag = () => (
-    <div style={{ margin: '0 -24px', height: 12, display: 'flex', overflow: 'hidden' }}>
-      {Array.from({ length: 24 }).map((_, i) => (
-        <svg key={i} xmlns="http://www.w3.org/2000/svg" width="24" height="12" style={{ flexShrink: 0 }}>
-          <path d="M0 12 L12 0 L24 12" fill={theme.zigzagBg} stroke={theme.zigzagLine} strokeWidth="1"/>
-        </svg>
-      ))}
-    </div>
-  );
-
-  const renderWavy = () => (
-    <div style={{ margin: '0 -24px', height: 12, display: 'flex', overflow: 'hidden' }}>
-      {Array.from({ length: 24 }).map((_, i) => (
-        <svg key={i} xmlns="http://www.w3.org/2000/svg" width="24" height="12" style={{ flexShrink: 0 }}>
-          <path d="M0 12 Q6 0 12 12 T24 12" fill={theme.zigzagBg} stroke={theme.zigzagLine} strokeWidth="1"/>
-        </svg>
-      ))}
-    </div>
-  );
 
   const getLogoBorderRadius = () => {
     if (logoShape === 'square') return '4px';
@@ -332,8 +311,12 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
           </div>
 
           {/* Separator */}
-          {dividerStyle === 'zigzag' && renderZigzag()}
-          {dividerStyle === 'wavy' && renderWavy()}
+          {dividerStyle === 'zigzag' && (
+            <div style={{ margin: '16px -24px', borderTop: `2px dashed ${theme.zigzagLine}` }} />
+          )}
+          {dividerStyle === 'wavy' && (
+            <div style={{ margin: '16px -24px', borderTop: `2px dotted ${theme.zigzagLine}` }} />
+          )}
           {dividerStyle === 'dashed' && (
             <div style={{ margin: '16px 0', borderTop: `2px dashed ${theme.zigzagLine}` }} />
           )}
