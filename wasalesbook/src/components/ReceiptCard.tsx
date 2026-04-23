@@ -140,7 +140,6 @@ export const FONTS = [
 export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
   const [generating, setGenerating] = useState(false);
-  const [modalConfig, setModalConfig] = useState<{ url: string, waUrl?: string, file?: File } | null>(null);
   const [base64Logo, setBase64Logo] = useState<string | null>(null);
   const [logoError, setLogoError] = useState(false);
 
@@ -223,41 +222,75 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   // Ultra-basic implementation: No native share APIs, no programmatic downloads.
   // We simply generate the image and display it in the full-screen modal.
   // The user manually long-presses to save or uses the WhatsApp button.
-  // ── Save / Share Image ──
-  const handleAction = async () => {
-    if (!receiptRef.current) return;
+  // ── Helper: Generate Image File ──
+  const generateReceiptFile = async (): Promise<File> => {
+    if (!receiptRef.current) throw new Error('Receipt ref missing');
+    const dataUrl = await toPng(receiptRef.current, {
+      cacheBust: true,
+      pixelRatio: 2,
+      backgroundColor: '#ffffff',
+      skipFonts: true,
+    });
+    const blob = dataURItoBlob(dataUrl);
+    return new File([blob], `receipt_${order.id}.png`, { type: 'image/png' });
+  };
+
+  // ── Save Image ──
+  const handleSave = async () => {
     try {
       setGenerating(true);
-
-      const dataUrl = await toPng(receiptRef.current, {
-        cacheBust: true,
-        pixelRatio: 2,
-        backgroundColor: '#ffffff',
-        skipFonts: true, // Prevents iOS Safari from crashing on font fetching
-      });
-      
-      // Pre-compute the Blob/File so the download button can be 100% synchronous (bypassing iOS blockers)
-      const blob = dataURItoBlob(dataUrl);
-      const file = new File([blob], `receipt_${order.id}.png`, { type: 'image/png' });
-
-      const text = `Hi ${order.customerName},\n\nOrder Confirmed ✅\nProduct: ${order.product}\nAmount: ${formattedAmount}\nRef: ${order.id}`;
-      let waUrl = '';
-      if (order.phone) {
-        const cleanPhone = order.phone.replace(/\D/g, '');
-        waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text + '\n\n📎 Please see receipt attached.')}`;
-      }
-
-      setModalConfig({ url: dataUrl, waUrl, file });
+      const file = await generateReceiptFile();
+      const url = URL.createObjectURL(file);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.name;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 100);
+      showToast('Receipt saved!');
     } catch (err: any) {
-      console.error('Generation error:', err);
-      showToast('Could not generate receipt. Please try again.');
+      console.error('Save error:', err);
+      showToast('Could not save receipt. Please try again.');
     } finally {
       setGenerating(false);
     }
   };
 
-  const handleSave = handleAction;
-  const handleShare = handleAction;
+  // ── Share Image ──
+  const handleShare = async () => {
+    try {
+      setGenerating(true);
+      const file = await generateReceiptFile();
+      const text = `Hi ${order.customerName},\n\nOrder Confirmed ✅\nProduct: ${order.product}\nAmount: ${formattedAmount}\nRef: ${order.id}`;
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'Order Receipt',
+          text: text
+        });
+        showToast('Shared successfully!');
+      } else {
+        // Fallback for Desktop/PC: Open WhatsApp Web directly
+        if (order.phone) {
+          const cleanPhone = order.phone.replace(/\D/g, '');
+          const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text + '\n\n📎 Please attach the saved image.')}`;
+          window.open(waUrl, '_blank');
+        } else {
+          showToast('Native sharing is not supported on this device.');
+        }
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return; // User cancelled the share sheet
+      console.error('Share error:', err);
+      showToast('Could not share receipt. Please try again.');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const isDark = theme.id === 'midnight' || theme.id === 'mono';
 
@@ -435,99 +468,6 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
         </button>
       </div>
 
-      {/* ── Receipt preview modal with download button ── */}
-      {modalConfig && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, zIndex: 9999,
-            background: 'rgba(0,0,0,0.88)',
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            padding: 16,
-          }}
-          onClick={() => setModalConfig(null)}
-        >
-          {/* Prevent click-through on inner content */}
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column' }}>
-            <img
-              src={modalConfig.url}
-              alt="Receipt Preview"
-              style={{ 
-                width: '100%', 
-                borderRadius: 16, 
-                background: 'white',
-                boxShadow: '0 8px 40px rgba(0,0,0,0.4)',
-                display: 'block'
-              }}
-            />
-            
-            <div style={{ display: 'flex', gap: 12, marginTop: 16, flexWrap: 'wrap' }}>
-              <button
-                onClick={() => {
-                  if (!modalConfig.file) return;
-                  
-                  // Synchronous check for mobile share API
-                  if (navigator.canShare && navigator.canShare({ files: [modalConfig.file] })) {
-                    navigator.share({
-                      files: [modalConfig.file],
-                      title: 'Order Receipt',
-                    }).then(() => showToast('Shared successfully!')).catch(console.error);
-                  } else {
-                    // Fallback to safe desktop download
-                    const url = URL.createObjectURL(modalConfig.file);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = `receipt_${order.id}.png`;
-                    document.body.appendChild(link);
-                    link.click();
-                    setTimeout(() => {
-                      document.body.removeChild(link);
-                      URL.revokeObjectURL(url);
-                    }, 100);
-                    showToast('Receipt downloaded!');
-                  }
-                }}
-                style={{
-                  flex: 1, minWidth: 100, padding: '14px 0',
-                  background: '#10b981', border: 'none',
-                  borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
-                }}
-              >
-                <span>⬇️</span> Share / Save
-              </button>
-              
-              {modalConfig.waUrl && (
-                <a
-                  href={modalConfig.waUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => setModalConfig(null)}
-                  style={{
-                    flex: 1, minWidth: 100, padding: '14px 0', textAlign: 'center',
-                    background: '#25D366', border: 'none', textDecoration: 'none',
-                    borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
-                  }}
-                >
-                  <span>💬</span> WhatsApp
-                </a>
-              )}
-              
-              <button
-                onClick={() => setModalConfig(null)}
-                style={{
-                  flex: 1, minWidth: 100, padding: '14px 0',
-                  background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
-                  borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
-                }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
