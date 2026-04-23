@@ -34,12 +34,15 @@ export function DailySummary({ summary, orders, onViewChange, showToast }: Daily
           model: 'gemini-2.0-flash',
           contents: `You are a helpful assistant for a small WhatsApp seller. Write a short, friendly, plain-English daily sales summary based on these stats:
 
-Orders today: ${summary.totalOrders}
-Total revenue expected: ${formatCurrency(summary.totalRevenue)}
-Collected so far: ${formatCurrency(summary.totalCollected)}
-Still owed: ${formatCurrency(summary.totalOwed)}
-Pending delivery: ${summary.pendingDelivery}
-Delivered: ${summary.delivered}
+TODAY'S PERFORMANCE:
+- Orders today: ${summary.totalOrders}
+- Revenue from today's orders: ${formatCurrency(summary.totalRevenue)}
+- Collected today: ${formatCurrency(summary.totalCollected)}
+
+OVERALL BUSINESS BACKLOG (All Time):
+- Total unpaid cash to collect: ${formatCurrency(summary.totalOwed)}
+- Total pending deliveries: ${summary.pendingDelivery}
+- Total completed deliveries: ${summary.delivered}
 
 Order details:
 ${orderLines}

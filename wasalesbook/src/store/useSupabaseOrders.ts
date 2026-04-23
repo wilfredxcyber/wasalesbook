@@ -103,9 +103,9 @@ export function useSupabaseOrders(userId: string | undefined) {
       totalOrders: todayOrders.length,
       totalRevenue,
       totalCollected,
-      totalOwed: totalRevenue - totalCollected,
-      pendingDelivery: todayOrders.filter(o => o.deliveryStatus === 'Pending').length,
-      delivered: todayOrders.filter(o => o.deliveryStatus === 'Delivered').length,
+      totalOwed: orders.filter(o => o.paymentStatus === 'Unpaid').reduce((s, o) => s + o.amount, 0),
+      pendingDelivery: orders.filter(o => o.deliveryStatus === 'Pending').length,
+      delivered: orders.filter(o => o.deliveryStatus === 'Delivered').length,
     };
   };
 
