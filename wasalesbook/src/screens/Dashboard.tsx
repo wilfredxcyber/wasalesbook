@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Order, BusinessProfile } from '../store/types';
+import { SalesChart } from '../components/SalesChart';
 import { Confetti } from '../components/Confetti';
 
 type Filter = 'All' | 'Pending' | 'Paid' | 'Delivered';
@@ -156,6 +157,8 @@ export function Dashboard({ orders, profile, onViewChange, showToast, updateOrde
             <p className="text-white text-xl font-bold tracking-tight truncate">{profile.currencySymbol}{unpaidTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
           </div>
         </div>
+
+        {orders.length > 0 && <SalesChart orders={orders} />}
 
 
         {orders.length === 0 ? (
