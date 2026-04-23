@@ -308,79 +308,44 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
   // Receipt-style tear dividers
   const renderZigzag = () => (
     <div style={{ margin: '12px -24px', lineHeight: 0, position: 'relative' }}>
-      {/* Top jagged edge (teeth pointing down into separator) */}
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 408 18" width="100%" height="18" preserveAspectRatio="none" style={{ display: 'block' }}>
-        {/* Card-color fill masking the top into zigzag shape */}
-        <polygon
-          points="0,0 408,0 408,9 396,18 384,9 372,18 360,9 348,18 336,9 324,18 312,9 300,18 288,9 276,18 264,9 252,18 240,9 228,18 216,9 204,18 192,9 180,18 168,9 156,18 144,9 132,18 120,9 108,18 96,9 84,18 72,9 60,18 48,9 36,18 24,9 12,18 0,9"
-          fill={theme.zigzagBg}
-        />
-        {/* Side notches */}
-        <circle cx="0" cy="9" r="9" fill={theme.zigzagBg} />
-        <circle cx="408" cy="9" r="9" fill={theme.zigzagBg} />
-        {/* Zigzag stroke */}
-        <polyline
-          points="0,9 12,18 24,9 36,18 48,9 60,18 72,9 84,18 96,9 108,18 120,9 132,18 144,9 156,18 168,9 180,18 192,9 204,18 216,9 228,18 240,9 252,18 264,9 276,18 288,9 300,18 312,9 324,18 336,9 348,18 360,9 372,18 384,9 396,18 408,9"
-          fill="none" stroke={theme.zigzagLine} strokeWidth="1.5"
-        />
+      <svg viewBox="0 0 408 24" width="100%" height="24" preserveAspectRatio="none" style={{ display: 'block' }}>
+        <polygon points="0,0 408,0 408,12 390,24 372,12 354,24 336,12 318,24 300,12 282,24 264,12 246,24 228,12 210,24 192,12 174,24 156,12 138,24 120,12 102,24 84,12 66,24 48,12 30,24 12,12 0,24" fill={theme.zigzagBg} />
+        <circle cx="0" cy="12" r="12" fill={theme.zigzagBg} />
+        <circle cx="408" cy="12" r="12" fill={theme.zigzagBg} />
+        <polyline points="0,12 12,12 30,24 48,12 66,24 84,12 102,24 120,12 138,24 156,12 174,24 192,12 210,24 228,12 246,24 264,12 282,24 300,12 318,24 336,12 354,24 372,12 390,24 408,12" fill="none" stroke={theme.zigzagLine} strokeWidth="2" />
       </svg>
-      {/* Tear-here dashed center line */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 12px' }}>
-        <div style={{ flex: 1, borderTop: `1.5px dashed ${theme.zigzagLine}`, opacity: 0.5 }} />
-        <span style={{ fontSize: 8, fontWeight: 700, color: theme.zigzagLine, opacity: 0.5, letterSpacing: 1, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>✂ tear here</span>
-        <div style={{ flex: 1, borderTop: `1.5px dashed ${theme.zigzagLine}`, opacity: 0.5 }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px' }}>
+        <div style={{ flex: 1, borderTop: `2px dashed ${theme.zigzagLine}`, opacity: 0.4 }} />
+        <span style={{ fontSize: 9, fontWeight: 800, color: theme.zigzagLine, opacity: 0.6, letterSpacing: 1.5, textTransform: 'uppercase', padding: '2px 8px', borderRadius: 4, background: theme.detailsBg }}>✂ TEAR HERE</span>
+        <div style={{ flex: 1, borderTop: `2px dashed ${theme.zigzagLine}`, opacity: 0.4 }} />
       </div>
-      {/* Bottom jagged edge (teeth pointing up) */}
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 408 18" width="100%" height="18" preserveAspectRatio="none" style={{ display: 'block' }}>
-        <polygon
-          points="0,18 408,18 408,9 396,0 384,9 372,0 360,9 348,0 336,9 324,0 312,9 300,0 288,9 276,0 264,9 252,0 240,9 228,0 216,9 204,0 192,9 180,0 168,9 156,0 144,9 132,0 120,9 108,0 96,9 84,0 72,9 60,0 48,9 36,0 24,9 12,0 0,9"
-          fill={theme.zigzagBg}
-        />
-        <circle cx="0" cy="9" r="9" fill={theme.zigzagBg} />
-        <circle cx="408" cy="9" r="9" fill={theme.zigzagBg} />
-        <polyline
-          points="0,9 12,0 24,9 36,0 48,9 60,0 72,9 84,0 96,9 108,0 120,9 132,0 144,9 156,0 168,9 180,0 192,9 204,0 216,9 228,0 240,9 252,0 264,9 276,0 288,9 300,0 312,9 324,0 336,9 348,0 360,9 372,0 384,9 396,0 408,9"
-          fill="none" stroke={theme.zigzagLine} strokeWidth="1.5"
-        />
+      <svg viewBox="0 0 408 24" width="100%" height="24" preserveAspectRatio="none" style={{ display: 'block' }}>
+        <polygon points="0,24 408,24 408,12 390,0 372,12 354,0 336,12 318,0 300,12 282,0 264,12 246,0 228,12 210,0 192,12 174,0 156,12 138,0 120,12 102,0 84,12 66,0 48,12 30,0 12,12 0,0" fill={theme.zigzagBg} />
+        <circle cx="0" cy="12" r="12" fill={theme.zigzagBg} />
+        <circle cx="408" cy="12" r="12" fill={theme.zigzagBg} />
+        <polyline points="0,12 12,12 30,0 48,12 66,0 84,12 102,0 120,12 138,0 156,12 174,0 192,12 210,0 228,12 246,0 264,12 282,0 300,12 318,0 336,12 354,0 372,12 390,0 408,12" fill="none" stroke={theme.zigzagLine} strokeWidth="2" />
       </svg>
     </div>
   );
 
   const renderWavy = () => (
     <div style={{ margin: '12px -24px', lineHeight: 0, position: 'relative' }}>
-      {/* Top wavy edge — large smooth cubic bezier waves */}
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 408 20" width="100%" height="20" preserveAspectRatio="none" style={{ display: 'block' }}>
-        {/* Fill above the wave line with card bg */}
-        <path
-          d="M0,10 C10,10 24,0 34,0 C44,0 58,10 68,10 C78,10 92,20 102,20 C112,20 126,10 136,10 C146,10 160,0 170,0 C180,0 194,10 204,10 C214,10 228,20 238,20 C248,20 262,10 272,10 C282,10 296,0 306,0 C316,0 330,10 340,10 C350,10 364,20 374,20 C384,20 398,10 408,10 L408,0 L0,0 Z"
-          fill={theme.zigzagBg}
-        />
-        <circle cx="0" cy="10" r="10" fill={theme.zigzagBg} />
-        <circle cx="408" cy="10" r="10" fill={theme.zigzagBg} />
-        {/* Smooth wave stroke */}
-        <path
-          d="M0,10 C10,10 24,0 34,0 C44,0 58,10 68,10 C78,10 92,20 102,20 C112,20 126,10 136,10 C146,10 160,0 170,0 C180,0 194,10 204,10 C214,10 228,20 238,20 C248,20 262,10 272,10 C282,10 296,0 306,0 C316,0 330,10 340,10 C350,10 364,20 374,20 C384,20 398,10 408,10"
-          fill="none" stroke={theme.zigzagLine} strokeWidth="1.5"
-        />
+      <svg viewBox="0 0 408 24" width="100%" height="24" preserveAspectRatio="none" style={{ display: 'block' }}>
+        <path d="M0,24 Q51,0 102,24 Q153,0 204,24 Q255,0 306,24 Q357,0 408,24 L408,0 L0,0 Z" fill={theme.zigzagBg} />
+        <circle cx="0" cy="12" r="12" fill={theme.zigzagBg} />
+        <circle cx="408" cy="12" r="12" fill={theme.zigzagBg} />
+        <path d="M0,24 Q51,0 102,24 Q153,0 204,24 Q255,0 306,24 Q357,0 408,24" fill="none" stroke={theme.zigzagLine} strokeWidth="2" />
       </svg>
-      {/* Tear-here dashed center line */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 12px' }}>
-        <div style={{ flex: 1, borderTop: `1.5px dashed ${theme.zigzagLine}`, opacity: 0.5 }} />
-        <span style={{ fontSize: 8, fontWeight: 700, color: theme.zigzagLine, opacity: 0.5, letterSpacing: 1, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>✂ tear here</span>
-        <div style={{ flex: 1, borderTop: `1.5px dashed ${theme.zigzagLine}`, opacity: 0.5 }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px' }}>
+        <div style={{ flex: 1, borderTop: `2px dashed ${theme.zigzagLine}`, opacity: 0.4 }} />
+        <span style={{ fontSize: 9, fontWeight: 800, color: theme.zigzagLine, opacity: 0.6, letterSpacing: 1.5, textTransform: 'uppercase', padding: '2px 8px', borderRadius: 4, background: theme.detailsBg }}>✂ TEAR HERE</span>
+        <div style={{ flex: 1, borderTop: `2px dashed ${theme.zigzagLine}`, opacity: 0.4 }} />
       </div>
-      {/* Bottom wavy edge — mirror of top */}
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 408 20" width="100%" height="20" preserveAspectRatio="none" style={{ display: 'block' }}>
-        <path
-          d="M0,10 C10,10 24,20 34,20 C44,20 58,10 68,10 C78,10 92,0 102,0 C112,0 126,10 136,10 C146,10 160,20 170,20 C180,20 194,10 204,10 C214,10 228,0 238,0 C248,0 262,10 272,10 C282,10 296,20 306,20 C316,20 330,10 340,10 C350,10 364,0 374,0 C384,0 398,10 408,10 L408,20 L0,20 Z"
-          fill={theme.zigzagBg}
-        />
-        <circle cx="0" cy="10" r="10" fill={theme.zigzagBg} />
-        <circle cx="408" cy="10" r="10" fill={theme.zigzagBg} />
-        <path
-          d="M0,10 C10,10 24,20 34,20 C44,20 58,10 68,10 C78,10 92,0 102,0 C112,0 126,10 136,10 C146,10 160,20 170,20 C180,20 194,10 204,10 C214,10 228,0 238,0 C248,0 262,10 272,10 C282,10 296,20 306,20 C316,20 330,10 340,10 C350,10 364,0 374,0 C384,0 398,10 408,10"
-          fill="none" stroke={theme.zigzagLine} strokeWidth="1.5"
-        />
+      <svg viewBox="0 0 408 24" width="100%" height="24" preserveAspectRatio="none" style={{ display: 'block' }}>
+        <path d="M0,0 Q51,24 102,0 Q153,24 204,0 Q255,24 306,0 Q357,24 408,0 L408,24 L0,24 Z" fill={theme.zigzagBg} />
+        <circle cx="0" cy="12" r="12" fill={theme.zigzagBg} />
+        <circle cx="408" cy="12" r="12" fill={theme.zigzagBg} />
+        <path d="M0,0 Q51,24 102,0 Q153,24 204,0 Q255,24 306,0 Q357,24 408,0" fill="none" stroke={theme.zigzagLine} strokeWidth="2" />
       </svg>
     </div>
   );
