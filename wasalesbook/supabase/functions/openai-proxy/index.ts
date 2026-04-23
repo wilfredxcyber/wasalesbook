@@ -42,9 +42,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Use OpenRouter's gemini-2.0-flash model (extremely fast, robust JSON and Vision support)
+    // Use OpenRouter's OpenAI gpt-4o-mini model (fast, robust JSON and Vision support)
     const openRouterPayload: any = {
-      model: 'google/gemini-2.0-flash-001', 
+      model: 'openai/gpt-4o-mini', 
       messages: [{ role: "user", content: finalContent }],
     };
 
