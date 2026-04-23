@@ -16,6 +16,17 @@ function formatDate(dateStr: string) {
   });
 }
 
+function dataURItoBlob(dataURI: string) {
+  const byteString = atob(dataURI.split(',')[1]);
+  const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+  const ab = new ArrayBuffer(byteString.length);
+  const ia = new Uint8Array(ab);
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i);
+  }
+  return new Blob([ab], { type: mimeString });
+}
+
 export const RECEIPT_THEMES = [
   {
     id: 'classic-green',
@@ -226,8 +237,7 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
       });
       
       // Pre-compute the Blob/File so the download button can be 100% synchronous (bypassing iOS blockers)
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
+      const blob = dataURItoBlob(dataUrl);
       const file = new File([blob], `receipt_${order.id}.png`, { type: 'image/png' });
 
       const text = `Hi ${order.customerName},\n\nOrder Confirmed ✅\nProduct: ${order.product}\nAmount: ${formattedAmount}\nRef: ${order.id}`;
