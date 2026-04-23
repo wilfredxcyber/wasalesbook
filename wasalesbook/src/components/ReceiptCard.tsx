@@ -228,8 +228,8 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
     const dataUrl = await toPng(receiptRef.current, {
       cacheBust: true,
       pixelRatio: 2,
-      backgroundColor: '#ffffff',
-      skipFonts: true,
+      // No backgroundColor override — use the theme's actual background
+      // No skipFonts — capture fonts exactly as the preview shows
     });
     const blob = dataURItoBlob(dataUrl);
     return new File([blob], `receipt_${order.id}.png`, { type: 'image/png' });
@@ -355,10 +355,25 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
 
           {/* Separator */}
           {dividerStyle === 'zigzag' && (
-            <div style={{ margin: '16px -24px', borderTop: `2px dashed ${theme.zigzagLine}` }} />
+            <div style={{
+              margin: '16px -24px',
+              height: 12,
+              background: `linear-gradient(135deg, ${theme.zigzagBg} 25%, transparent 25%) -10px 0,
+                           linear-gradient(225deg, ${theme.zigzagBg} 25%, transparent 25%) -10px 0,
+                           linear-gradient(315deg, ${theme.zigzagBg} 25%, transparent 25%),
+                           linear-gradient(45deg, ${theme.zigzagBg} 25%, transparent 25%)`,
+              backgroundSize: '20px 12px',
+              backgroundColor: theme.zigzagLine,
+            }} />
           )}
           {dividerStyle === 'wavy' && (
-            <div style={{ margin: '16px -24px', borderTop: `2px dotted ${theme.zigzagLine}` }} />
+            <div style={{
+              margin: '16px -24px',
+              height: 10,
+              background: `radial-gradient(circle at 10px -2px, transparent 8px, ${theme.zigzagLine} 8px, ${theme.zigzagLine} 10px, transparent 10px) 0 0 / 20px 10px,
+                           radial-gradient(circle at 0px -2px, transparent 8px, ${theme.zigzagLine} 8px, ${theme.zigzagLine} 10px, transparent 10px) 10px 0 / 20px 10px`,
+              backgroundColor: 'transparent',
+            }} />
           )}
           {dividerStyle === 'dashed' && (
             <div style={{ margin: '16px 0', borderTop: `2px dashed ${theme.zigzagLine}` }} />
