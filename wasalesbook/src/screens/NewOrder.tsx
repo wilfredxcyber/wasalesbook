@@ -207,7 +207,8 @@ export function NewOrder({ profile, catalogue, onViewChange, showToast, addOrder
       </header>
 
       <main className="pt-20 pb-36 px-4 max-w-2xl mx-auto space-y-6">
-        {/* Smart Paste */}
+        {/* Smart Paste (On Hold) */}
+        {false && (
         <section className="bg-surface-container-lowest p-5 rounded-2xl shadow-[0_8px_32px_rgba(12,30,38,0.06)] border border-primary/10">
           <div 
             className="flex items-center justify-between cursor-pointer group"
@@ -267,6 +268,7 @@ export function NewOrder({ profile, catalogue, onViewChange, showToast, addOrder
             </div>
           )}
         </section>
+        )}
 
         {/* Manual Fields */}
         <section className="bg-surface-container-lowest p-6 rounded-2xl shadow-[0_8px_32px_rgba(12,30,38,0.06)] space-y-6">

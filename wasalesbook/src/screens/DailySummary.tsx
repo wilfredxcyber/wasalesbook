@@ -123,7 +123,8 @@ Write a short summary (3-5 sentences) that helps the seller understand: how thei
           </div>
         </div>
 
-        {/* AI Summary Card */}
+        {/* AI Summary Card (On Hold) */}
+        {false && (
         <div className="bg-surface-container-lowest p-6 rounded-2xl shadow-sm border border-outline-variant/10 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
@@ -165,6 +166,7 @@ Write a short summary (3-5 sentences) that helps the seller understand: how thei
             </button>
           )}
         </div>
+        )}
       </main>
     </div>
   );
