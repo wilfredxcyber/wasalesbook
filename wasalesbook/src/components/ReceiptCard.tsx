@@ -348,16 +348,18 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
 
   const renderWavy = () => (
     <div style={{ margin: '12px -24px', lineHeight: 0, position: 'relative' }}>
-      {/* Top wavy edge */}
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 408 18" width="100%" height="18" preserveAspectRatio="none" style={{ display: 'block' }}>
+      {/* Top wavy edge — large smooth cubic bezier waves */}
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 408 20" width="100%" height="20" preserveAspectRatio="none" style={{ display: 'block' }}>
+        {/* Fill above the wave line with card bg */}
         <path
-          d="M0,9 Q17,18 34,9 Q51,0 68,9 Q85,18 102,9 Q119,0 136,9 Q153,18 170,9 Q187,0 204,9 Q221,18 238,9 Q255,0 272,9 Q289,18 306,9 Q323,0 340,9 Q357,18 374,9 Q391,0 408,9 L408,0 L0,0 Z"
+          d="M0,10 C10,10 24,0 34,0 C44,0 58,10 68,10 C78,10 92,20 102,20 C112,20 126,10 136,10 C146,10 160,0 170,0 C180,0 194,10 204,10 C214,10 228,20 238,20 C248,20 262,10 272,10 C282,10 296,0 306,0 C316,0 330,10 340,10 C350,10 364,20 374,20 C384,20 398,10 408,10 L408,0 L0,0 Z"
           fill={theme.zigzagBg}
         />
-        <circle cx="0" cy="9" r="9" fill={theme.zigzagBg} />
-        <circle cx="408" cy="9" r="9" fill={theme.zigzagBg} />
+        <circle cx="0" cy="10" r="10" fill={theme.zigzagBg} />
+        <circle cx="408" cy="10" r="10" fill={theme.zigzagBg} />
+        {/* Smooth wave stroke */}
         <path
-          d="M0,9 Q17,18 34,9 Q51,0 68,9 Q85,18 102,9 Q119,0 136,9 Q153,18 170,9 Q187,0 204,9 Q221,18 238,9 Q255,0 272,9 Q289,18 306,9 Q323,0 340,9 Q357,18 374,9 Q391,0 408,9"
+          d="M0,10 C10,10 24,0 34,0 C44,0 58,10 68,10 C78,10 92,20 102,20 C112,20 126,10 136,10 C146,10 160,0 170,0 C180,0 194,10 204,10 C214,10 228,20 238,20 C248,20 262,10 272,10 C282,10 296,0 306,0 C316,0 330,10 340,10 C350,10 364,20 374,20 C384,20 398,10 408,10"
           fill="none" stroke={theme.zigzagLine} strokeWidth="1.5"
         />
       </svg>
@@ -367,16 +369,16 @@ export function ReceiptCard({ order, profile, showToast }: ReceiptCardProps) {
         <span style={{ fontSize: 8, fontWeight: 700, color: theme.zigzagLine, opacity: 0.5, letterSpacing: 1, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>✂ tear here</span>
         <div style={{ flex: 1, borderTop: `1.5px dashed ${theme.zigzagLine}`, opacity: 0.5 }} />
       </div>
-      {/* Bottom wavy edge */}
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 408 18" width="100%" height="18" preserveAspectRatio="none" style={{ display: 'block' }}>
+      {/* Bottom wavy edge — mirror of top */}
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 408 20" width="100%" height="20" preserveAspectRatio="none" style={{ display: 'block' }}>
         <path
-          d="M0,9 Q17,0 34,9 Q51,18 68,9 Q85,0 102,9 Q119,18 136,9 Q153,0 170,9 Q187,18 204,9 Q221,0 238,9 Q255,18 272,9 Q289,0 306,9 Q323,18 340,9 Q357,0 374,9 Q391,18 408,9 L408,18 L0,18 Z"
+          d="M0,10 C10,10 24,20 34,20 C44,20 58,10 68,10 C78,10 92,0 102,0 C112,0 126,10 136,10 C146,10 160,20 170,20 C180,20 194,10 204,10 C214,10 228,0 238,0 C248,0 262,10 272,10 C282,10 296,20 306,20 C316,20 330,10 340,10 C350,10 364,0 374,0 C384,0 398,10 408,10 L408,20 L0,20 Z"
           fill={theme.zigzagBg}
         />
-        <circle cx="0" cy="9" r="9" fill={theme.zigzagBg} />
-        <circle cx="408" cy="9" r="9" fill={theme.zigzagBg} />
+        <circle cx="0" cy="10" r="10" fill={theme.zigzagBg} />
+        <circle cx="408" cy="10" r="10" fill={theme.zigzagBg} />
         <path
-          d="M0,9 Q17,0 34,9 Q51,18 68,9 Q85,0 102,9 Q119,18 136,9 Q153,0 170,9 Q187,18 204,9 Q221,0 238,9 Q255,18 272,9 Q289,0 306,9 Q323,18 340,9 Q357,0 374,9 Q391,18 408,9"
+          d="M0,10 C10,10 24,20 34,20 C44,20 58,10 68,10 C78,10 92,0 102,0 C112,0 126,10 136,10 C146,10 160,20 170,20 C180,20 194,10 204,10 C214,10 228,0 238,0 C248,0 262,10 272,10 C282,10 296,20 306,20 C316,20 330,10 340,10 C350,10 364,0 374,0 C384,0 398,10 408,10"
           fill="none" stroke={theme.zigzagLine} strokeWidth="1.5"
         />
       </svg>
